@@ -1,0 +1,58 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String       @id @default(uuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  role         String       // "ADMIN", "INSPECTOR", "SUPERVISOR"
+  inspections  Inspection[] @relation("InspectorRelation")
+  approvals    Inspection[] @relation("SupervisorRelation")
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Inspection {
+  id           String             @id @default(uuid())
+  date         DateTime
+  status       String             // "DRAFT", "SUBMITTED", "APPROVED"
+  inspectorId  String
+  inspector    User               @relation("InspectorRelation", fields: [inspectorId], references: [id])
+  supervisorId String?
+  supervisor   User?              @relation("SupervisorRelation", fields: [supervisorId], references: [id])
+  details      InspectionDetail[]
+  signature    String?            // Base64 signature image or path
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+}
+
+model InspectionItem {
+  id        String             @id @default(uuid())
+  zone      String             // "RUNWAY", "TAXIWAY", "APRON"
+  category  String             // e.g., "Marking", "Pavement", "Lighting"
+  name      String             // e.g., "Centerline marking", "Potholes", "Edge Light"
+  order     Int                @default(0)
+  details   InspectionDetail[]
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+}
+
+model InspectionDetail {
+  id           String         @id @default(uuid())
+  inspectionId String
+  inspection   Inspection     @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         InspectionItem @relation(fields: [itemId], references: [id])
+  status       String         // "BAIK", "RUSAK", "NA"
+  remarks      String?
+  photoUrl     String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+}
