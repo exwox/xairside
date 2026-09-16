@@ -25,11 +25,17 @@ export async function GET(
       },
     });
 
-    if (!inspection) {
+        if (!inspection) {
       return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
     }
 
-    return NextResponse.json(inspection);
+    // Parse matrixResults JSON string if present
+    const parsedInspection = {
+      ...inspection,
+      matrixResults: inspection.matrixResults ? JSON.parse(inspection.matrixResults) : null,
+    };
+
+    return NextResponse.json(parsedInspection);
   } catch (error) {
     console.error('Error fetching inspection:', error);
     return NextResponse.json({ error: 'Failed to fetch inspection details' }, { status: 500 });

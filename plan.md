@@ -1,156 +1,242 @@
-# Rencana Digitalisasi Laporan Checklist Inspeksi Airside (Runway, Taxiway, Apron)
 
-Dokumen ini menjelaskan rencana pengembangan aplikasi berbasis web untuk digitalisasi checklist inspeksi airside yang sebelumnya menggunakan file Excel (.xlsx). Aplikasi ini dirancang agar responsif (mendukung perangkat mobile) dan dapat menghasilkan output laporan yang formatnya sama persis dengan template Excel siap cetak.
+## 4. Rancangan Menu & Halaman
 
----
+```
+┌──────────────────────────────────────────────────────────────────────────┐
+│  ✈ X-Airside Monitoring   [ Dashboard ] [ Inspeksi ] [ Marka ] [ PCI ]   │
+├───────────────────────────────────────────────────────────┬──────────────┤
+│  PETA SATELIT (Leaflet + Esri World Imagery)              │ PANEL INFO   │
+│  ▣ Polygon fasilitas (RWY/TWY/APRON) + label kode         │ ┌──────────┐ │
+│  ▣ Overlay DXF (layer on/off, upload .dxf)                │ │Fasilitas │ │
+│  ▣ Rectangle kerusakan (L/M/H) — klik utk detail          │ │PCN/PCR   │ │
+│  ▣ Titik temuan marka                                     │ │Dimensi   │ │
+│  [+] Gambar Kerusakan   [⬆ Timpa DXF]   [⚙ Koordinat]     │ │Performance│ │
+│  Status bar: lat,lng (Google) · X,Y m (aerodrome)         │ └──────────┘ │
+└───────────────────────────────────────────────────────────┴──────────────┘
+KPI: Total Fasilitas · Temuan Terbuka (L/M/H) · Marka Perlu Perbaikan · PCI Terakhir
+```
 
-## 1. Arsitektur & Teknologi Terpilih
+1. **Dashboard** (`/`) — peta + panel detail fasilitas (PCN/PCR, dimensi, tipe perkerasan, bearing, status, jumlah temuan, PCI terakhir) + KPI performance + daftar temuan + modals: *Upload DXF*, *Form Kerusakan* (auto-isi luasan/koordinat/station dari rectangle), *Pengaturan ARP*, *Kelola Fasilitas*.
+2. **Inspeksi** (`/inspeksi`) — portal checklist existing (InspectorForm + SupervisorDashboard) dipindah utuh ke menu ini.
+3. **Marka** (`/marka`) — inventaris & kondisi marka per fasilitas (threshold, centerline, TDZ, holding position, stand line, dst.), kondisi BAIK/PERLU_PERBAIKAN/USANG, station, opsional koordinat & luasan, daftar temuan + tindak lanjut.
+4. **PCI (mode lanjutan)** (`/pci`) — manajemen section perkerasan → builder survey sample unit (distress ASTM D6433 + severity + quantity) → perhitungan PCI (server) → hasil per sample unit + PCI section + rating + riwayat.
 
-Untuk mencapai performa optimal, kemudahan pengembangan, serta pemenuhan kebutuhan mobile-friendly dan cetak laporan yang presisi, berikut adalah rekomendasi *tech stack*:
+## 5. Prosedur PCI Mode Lanjutan (ASTM D6433)
 
-| Komponen | Teknologi | Alasan Pemilihan |
+```
+Input sample unit ──► density tiap distress ──► Deduct Value (kurva ASTM)
+        │                                             │
+        ▼                                             ▼
+ quantity & severity (L/M/H)              max CDV (koreksi q/n, kurva F)
+                                                      │
+                                                      ▼
+                              PCI sample unit = 100 − max CDV
+                                                      │
+                              PCI section = Σ (PCI unit × luas unit)/Σ luas
+```
+- **Rating**: 86–100 Excellent · 71–85 Very Good · 56–70 Good · 41–55 Fair · 26–40 Poor · 11–25 Very Poor · 0–10 Failed.
+- Distress ASPHALT (15) & JPCC (utama) tersedia pada `src/lib/pci-data.ts`; **kurva deduct dapat dikalibrasi** tanpa mengubah engine.
+
+## 6. Alur Kerja
+
+```
+[Upload DXF + set ARP/rotasi] ──► [Dashboard: overlay + detailing station]
+        │
+        ▼ (patroli lapangan)
+[Inspeksi checklist existing]        [Gambar rectangle kerusakan di peta]
+        │                                     │
+        ▼                                     ▼
+[Approval supervisor]                [DB: posisi, koordinat, luasan, jenis, severity]
+                                              │
+                                              ▼
+                              [Marka: monitoring kondisi marka]
+                                              │
+                                              ▼
+                              [PCI lanjutan: survey sample unit → skor & rating]
+```
+
+## 7. Tahapan Implementasi (mapping file)
+
+| Tahap | Isi | File |
 | :--- | :--- | :--- |
-| **Frontend** | React (Next.js) + Tailwind CSS | Responsif (Mobile-first), mendukung rendering sisi server (SSR) untuk kecepatan, serta Tailwind memudahkan penyesuaian layout cetak (`@media print`). |
-| **UI Library** | shadcn/ui / Flowbite + Lucide | Menyediakan komponen UI modern yang ramah perangkat seluler dan mudah disesuaikan. |
-| **Backend API** | Node.js (Express) atau Laravel | Tangguh, cepat, dan memiliki library yang sangat baik untuk memanipulasi & menghasilkan file Excel. |
-| **Database** | PostgreSQL / MySQL | Relasional, cocok untuk struktur data checklist yang memiliki relasi antara jadwal, item inspeksi, temuan, dan tanda tangan digital. |
-| **Excel & PDF Generator** | **ExcelJS** (JS) atau **PhpSpreadsheet** (PHP) | Mampu memuat template `.xlsx` yang sudah ada, mengisi data dinamis ke dalamnya, mempertahankan formatting (border, warna, font, merger cell), lalu mengunduhnya. |
+| 1 | Skema DB + migrasi + seed | `prisma/schema.prisma`, `prisma/seed.ts` |
+| 2 | Lib geo/DXF/PCI/constants | `src/lib/geo.ts`, `src/lib/dxf.ts`, `src/lib/pci-data.ts`, `src/lib/pci.ts`, `src/lib/constants.ts` |
+| 3 | REST API monitoring | `src/app/api/{config,facilities,map-layers,damages,markings,pci/*}` |
+| 4 | Shell & Dashboard + peta | `src/components/AppShell.tsx`, `DashboardView.tsx`, `FacilityMap.tsx`, `DamageFormModal.tsx`, `DxfUploadModal.tsx` |
+| 5 | Menu Marka & PCI | `src/components/MarkaView.tsx`, `PciView.tsx`, `PciSurveyBuilder.tsx` |
+| 6 | Routing halaman | `src/app/page.tsx`, `src/app/{inspeksi,marka,pci}/page.tsx`, `layout.tsx` |
+| 7 | Validasi | migrate → seed → `next build` → smoke test API & UI |
+
+## 8. Risiko & Mitigasi
+
+| Risiko | Mitigasi |
+| :--- | :--- |
+| Kurva deduct ASTM belum persis standar | Data terpisah di `pci-data.ts`, mudah dikalibrasi; prosedur DV→CDV→PCI sesuai ASTM |
+| Georeferencing DXF meleset | Konfigurasi ref point/rotasi/skala per layer + verifikasi visual terhadap citra satelit |
+| DXF besar → berat render | Parser membatasi jumlah entity, filter per layer, render polyline sederhana |
+| Citra satelit butuh internet | Basemap tetap berfungsi tanpa tile (polygon+DXF), koordinat lokal tidak bergantung tile |
+| Akurasi konversi koordinat | Local tangent plane cukup untuk skala bandara (< 0,1 m); dokumentasi rumus pada kode |
+
+## 9. Status Implementasi
+
+- [x] plan.md
+- [x] Skema Prisma + migrasi + seed data monitoring
+- [x] Lib geo (koordinat), DXF parser, engine PCI
+- [x] API monitoring lengkap
+- [x] Menu Dashboard/Inspeksi/Marka/PCI + peta + DXF overlay + rectangle kerusakan
+- [x] Build & smoke test
+
+# Plan — Aplikasi Monitoring Fasilitas Airside (X-Airside Monitoring)
+
+Dokumen ini adalah rencana pengembangan modul **monitoring fasilitas airside** yang dibangun **di atas aplikasi X-Airside Inspection Portal yang sudah berjalan** (digitalisasi checklist inspeksi Runway/Taxiway/Apron berbasis Excel). Modul baru menambahkan kemampuan pemetaan fasilitas, temuan kerusakan berbasis lokasi (koordinat Google & koordinat aerodrome), pemetaan kerusakan visual, monitoring marka, serta perhitungan **PCI (Pavement Condition Index) mode lanjutan**.
 
 ---
 
-## 2. Fitur Utama Aplikasi
+## 1. Ruang Lingkup Fitur
 
-### A. Tampilan Mobile (Mobile-Friendly Inspection Form)
-*   **Akses Lapangan**: Dioptimalkan untuk layar smartphone/tablet agar memudahkan petugas saat berjalan melakukan inspeksi di Runway, Taxiway, dan Apron.
-*   **Form Inspeksi Interaktif**: Pengisian checklist menggunakan pilihan cepat (contoh: *Baik / Rusak / Tidak Ada / N/A*).
-*   **Upload Foto Temuan**: Integrasi kamera handphone untuk memotret langsung temuan kerusakan (misal: *pothole*, *FOD*, lampu runway mati) dan memberikan catatan koordinat/lokasi.
-*   **Draft & Auto-Save**: Fitur untuk menyimpan progress pengisian sementara secara lokal (*local storage*) guna mencegah hilangnya data akibat kendala sinyal di area airside.
-
-### B. Dasbor Pemantauan (Web Desktop View)
-*   **Ringkasan Status**: Statistik temuan hari ini, status kelayakan airside, dan tren kerusakan.
-*   **Manajemen Inspeksi**: List inspeksi yang telah selesai, sedang berjalan (draft), atau membutuhkan verifikasi/approval dari supervisor.
-*   **Verifikasi / Approval**: Supervisor dapat meninjau temuan, memberikan catatan perbaikan, serta memberikan tanda tangan digital (*e-signature*).
-
-### C. Ekspor & Cetak Laporan (Presisi Excel)
-*   **Ekspor Excel (.xlsx)**: Sistem akan membaca file template Excel asli yang biasa digunakan, menyuntikkan data hasil inspeksi ke cell-cell yang sesuai, dan menyajikannya sebagai file download yang siap cetak tanpa merusak formatting aslinya.
-*   **Fitur "Siap Cetak" (Print-Ready)**: Layout HTML versi desktop akan dilengkapi dengan CSS `@media print` sehingga saat ditekan tombol "Cetak PDF" dari browser, hasilnya rapi, presisi, pas satu halaman (atau halaman terstruktur), tanpa terpotong.
+| Kode | Fitur | Deskripsi |
+| :--- | :--- | :--- |
+| **F1** | **Dashboard "Google Earth"** | Peta citra satelit interaktif (pan/zoom halus) menampilkan polygon fasilitas **Runway, Taxiway, Apron** beserta informasi **PCN/PCR, dimensi (panjang/lebar/luas), tipe perkerasan, status**, dan indikator **performance** (temuan terbuka, kondisi marka, PCI terakhir, status inspeksi). |
+| **F2** | **Overlay file DXF** | Peta dapat **ditimpa file `.dxf`** hasil drawing bandara untuk *detailing station lokasi*. DXF di-parse (LINE, LWPOLYLINE, POLYLINE, CIRCLE, ARC, TEXT/MTEXT, POINT), digeoreferensikan dengan **titik acuan ARP + rotasi + skala**, ditampilkan sebagai layer yang bisa di-on/off, dan label TEXT (station) dipakai untuk mendeteksi nama station di sekitar titik temuan. |
+| **F3** | **Temuan kerusakan berbasis koordinat** | Setiap temuan mencatat **dua sistem koordinat sekaligus**: koordinat Google (WGS84 lat/lng) dan **koordinat aerodrome** (grid lokal X=East, Y=North dalam meter dari ARP). Input dua arah: klik/pilih di peta, atau paste koordinat Google / koordinat lokal. |
+| **F4** | **Pemetaan kerusakan visual (rectangle)** | Petugas **menggambar rectangle langsung di peta** (drag). Saat disimpan, sistem merekam otomatis ke database: **posisi (lat/lng & lokal), polygon rectangle, panjang, lebar, luasan (m²), jenis kerusakan, severity (L/M/H), station, status tindak lanjut**. Rectangle tampil berwarna sesuai severity (L=kuning, M=oranye, H=merah). |
+| **F5** | **PCI mode lanjutan** | Data temuan/hasil survey diolah menjadi **PCI per segmen perkerasan** mengikuti prosedur **ASTM D6433**: sample unit, distress + severity + quantity/density, *deduct value*, koreksi *maximum Corrected Deduct Value (CDV)*, skor PCI 0–100 + rating kondisi, riwayat & tren per section. |
+| **F6** | **Menu utama** | **Dashboard** · **Inspeksi** (portal checklist existing) · **Marka** (monitoring marka) · **PCI (mode lanjutan)**. |
 
 ---
 
-## 3. Desain Database (Skema Relasional)
+## 2. Arsitektur & Teknologi
 
-Berikut adalah rancangan tabel utama untuk menyimpan data inspeksi:
+Dipilih agar konsisten dengan aplikasi existing (tanpa menambah infrastruktur baru):
+
+| Komponen | Teknologi | Catatan |
+| :--- | :--- | :--- |
+| Frontend | **Next.js 16 (App Router) + React 19 + TypeScript** | Sama dengan project existing; halaman client component. |
+| Styling | **Tailwind CSS 4 + lucide-react** | Konsisten dengan UI existing. |
+| Peta | **Leaflet 1.9 + citra satelit Esri World Imagery** | Ringan, tanpa API key; tampilan satelit ala Google Earth; kontrol zoom/layer kustom. |
+| Parser DXF | **Parser internal (`src/lib/dxf.ts`)** | Tanpa dependency eksternal; entity → JSON (satuan meter). |
+| Koordinat | **`src/lib/geo.ts`** | Konversi dua arah WGS84 ↔ grid lokal aerodrome (local tangent plane, akurasi < 0,1 m pada skala bandara) + polygon (luas, point-in-polygon) + stationing runway. |
+| Engine PCI | **`src/lib/pci.ts` + `src/lib/pci-data.ts`** | TypeScript murni; dataset deduct value ASTM D6433 (AS & JPCC) mudah dikalibrasi. |
+| Backend API | **Next.js Route Handlers** | Pola sama dengan API inspeksi existing (`params: Promise<...>`). |
+| Database | **Prisma + SQLite** (`DATABASE_URL=file:./dev.db`) | Skema diperluas dengan model monitoring. |
+| Laporan | **ExcelJS** (existing) | Dipertahankan untuk ekspor checklist; lanjutan ekspor PCI menyusul. |
+
+### Model Koordinat
+- **ARP (Aerodrome Reference Point)** disimpan di tabel `AppConfig` (`arpLat`, `arpLng`) — dapat diubah lewat menu pengaturan.
+- Grid lokal: **X = East (m), Y = North (m)** dari ARP, sumbu mengikuti **utara sejati**; konversi memakai panjang derajat lintang/bujur terkoreksi (series WGS84).
+- Layer DXF memiliki konfigurasi sendiri (`refLat`, `refLng`, `rotationDeg`, `scale`) sehingga drawing CAD dapat diselaraskan ke citra satelit.
+
+---
+
+## 3. Desain Database (tambahan)
 
 ```
-+--------------------+       +-------------------------+       +------------------------+
-|       users        |       |       inspections       |       |   inspection_details   |
-+--------------------+       +-------------------------+       +------------------------+
-| - id (PK)          |       | - id (PK)               |       | - id (PK)              |
-| - name             |1     *| - date                  |1     *| - inspection_id (FK)   |
-| - email            +-------> - inspector_id (FK)     +-------> - item_id (FK)         |
-| - password_hash    |       | - supervisor_id (FK)    |       | - status (Baik/Rusak)  |
-| - role (Admin/     |       | - status (Draft/        |       | - remarks (catatan)    |
-|   Inspector/Super) |       |   Submitted/Approved)   |       | - photo_url            |
-+--------------------+       +-------------------------+       +------------------------+
-                                                                            ^
-                                                                            | *
-                                                               +------------+-----------+
-                                                               |    inspection_items    |
-                                                               +------------------------+
-                                                               | - id (PK)              |
-                                                               | - zone (Runway/Taxiway/|
-                                                               |   Apron)               |
-                                                               | - item_name            |
-                                                               | - category             |
-                                                               +------------------------+
+AppConfig (key, value)                  -- arpLat, arpLng, airportName, dst.
+Facility  1---* Damage
+Facility  1---* MarkingFinding
+Facility  1---* PciSection 1---* PciSurvey
+MapLayer  (layer DXF, berdiri sendiri)
 ```
+
+| Model | Field kunci |
+| :--- | :--- |
+| `Facility` | code, name, type (RUNWAY/TAXIWAY/APRON), lengthM, widthM, areaSqm, surfaceType, **pcn**, **pcr**, bearingDeg, centroidLat/Lng, **polygonJson**, status, remarks |
+| `MapLayer` | name, fileName, refLat, refLng, rotationDeg, scale, **entitiesJson** (hasil parse DXF), visible |
+| `Damage` | facilityId?, **station**, **type** (jenis kerusakan), **severity (L/M/H)**, **lat, lng, localX, localY**, **rectJson** (4 titik), lengthM, widthM, **areaSqm**, photoUrl?, remarks?, status (OPEN/IN_PROGRESS/CLOSED), reportedBy? |
+| `MarkingFinding` | facilityId?, markingType, condition (BAIK/PERLU_PERBAIKAN/USANG), station?, lat/lng?, localX/Y?, areaSqm?, remarks?, status |
+| `PciSection` | facilityId?, name, surfaceType (ASPHALT/JPCP), totalAreaSqm, sampleUnitArea (default 225 m²), lastPci, lastSurveyAt |
+| `PciSurvey` | sectionId, inspectorName?, surveyDate, **pci**, rating, **detailsJson** (per sample unit: distress, DV, maxCDV, PCI) |
+| `AppConfig` | key-value (arpLat, arpLng, airportName) |
 
 ---
 
-## 4. Alur Kerja (Workflow) Aplikasi
+## 4. Rancangan Menu & Halaman
 
 ```
-[Mulai Inspeksi] 
-       │
-       ▼ (Petugas Lapangan - Mobile)
-[Isi Checklist Runway, Taxiway, Apron] ──► (Unggah foto & catat temuan jika ada)
-       │
-       ▼
-[Kirim Laporan (Status: Submitted)]
-       │
-       ▼ (Supervisor - Desktop/Mobile)
-[Review & Validasi Temuan] ──► (Opsional: Tambahkan catatan/perintah kerja)
-       │
-       ▼
-[Approval & Tanda Tangan Digital] (Status: Approved)
-       │
-       ▼
-[Ekspor ke Excel / Cetak PDF] ──► (Laporan akhir persis template Excel asli siap cetak)
+┌──────────────────────────────────────────────────────────────────────────┐
+│  ✈ X-Airside Monitoring   [ Dashboard ] [ Inspeksi ] [ Marka ] [ PCI ]   │
+├───────────────────────────────────────────────────────────┬──────────────┤
+│  PETA SATELIT (Leaflet + Esri World Imagery)              │ PANEL INFO   │
+│  ▣ Polygon fasilitas (RWY/TWY/APRON) + label kode         │ ┌──────────┐ │
+│  ▣ Overlay DXF (layer on/off, upload .dxf)                │ │Fasilitas │ │
+│  ▣ Rectangle kerusakan (L/M/H) — klik utk detail          │ │PCN/PCR   │ │
+│  ▣ Titik temuan marka                                     │ │Dimensi   │ │
+│  [+] Gambar Kerusakan   [⬆ Timpa DXF]   [⚙ Koordinat]     │ │Performance│ │
+│  Status bar: lat,lng (Google) · X,Y m (aerodrome)         │ └──────────┘ │
+└───────────────────────────────────────────────────────────┴──────────────┘
+KPI: Total Fasilitas · Temuan Terbuka (L/M/H) · Marka Perlu Perbaikan · PCI Terakhir
 ```
 
----
+1. **Dashboard** (`/`) — peta + panel detail fasilitas (PCN/PCR, dimensi, tipe perkerasan, bearing, status, jumlah temuan, PCI terakhir) + KPI performance + daftar temuan + modals: *Upload DXF*, *Form Kerusakan* (auto-isi luasan/koordinat/station dari rectangle), *Pengaturan ARP*, *Kelola Fasilitas*.
+2. **Inspeksi** (`/inspeksi`) — portal checklist existing (InspectorForm + SupervisorDashboard) dipindah utuh ke menu ini.
+3. **Marka** (`/marka`) — inventaris & kondisi marka per fasilitas (threshold, centerline, TDZ, holding position, stand line, dst.), kondisi BAIK/PERLU_PERBAIKAN/USANG, station, opsional koordinat & luasan, daftar temuan + tindak lanjut.
+4. **PCI (mode lanjutan)** (`/pci`) — manajemen section perkerasan → builder survey sample unit (distress ASTM D6433 + severity + quantity) → perhitungan PCI (server) → hasil per sample unit + PCI section + rating + riwayat.
 
-## 5. Rencana Tahapan Pengembangan (Roadmap)
+## 5. Prosedur PCI Mode Lanjutan (ASTM D6433)
 
-### Tahap 1: Inisiasi & Analisis Dokumen (Minggu 1)
-*   Mengumpulkan template file Excel asli untuk Runway, Taxiway, dan Apron.
-*   Pemetaan setiap sel (cell mapping) pada Excel ke dalam struktur database.
-*   Pembuatan mockup UI/UX khusus mobile untuk pengisian formulir dan desktop untuk cetak/verifikasi.
+```
+Input sample unit ──► density tiap distress ──► Deduct Value (kurva ASTM)
+        │                                             │
+        ▼                                             ▼
+ quantity & severity (L/M/H)              max CDV (koreksi q/n, kurva F)
+                                                      │
+                                                      ▼
+                              PCI sample unit = 100 − max CDV
+                                                      │
+                              PCI section = Σ (PCI unit × luas unit)/Σ luas
+```
+- **Rating**: 86–100 Excellent · 71–85 Very Good · 56–70 Good · 41–55 Fair · 26–40 Poor · 11–25 Very Poor · 0–10 Failed.
+- Distress ASPHALT (18) & JPCC (16) tersedia pada `src/lib/pci-data.ts`; **kurva deduct dapat dikalibrasi** tanpa mengubah engine.
 
-### Tahap 2: Setup Project & Database (Minggu 2)
-*   Inisialisasi repositori project.
-*   Pembuatan skema database dan migrasi.
-*   Setup autentikasi pengguna (JWT/Session-based).
+## 6. Alur Kerja
 
-
-### Tahap 3: Pengembangan Form Mobile (Minggu 3-4)
-*   Pembuatan halaman form dinamis untuk Runway, Taxiway, dan Apron.
-*   Fitur upload gambar temuan (simpan ke Cloud Storage seperti S3 atau lokal folder).
-*   Implementasi sistem auto-save menggunakan *Local Storage* browser.
-
-### Tahap 4: Pengembangan Dashboard & Engine Ekspor Excel (Minggu 5-6)
-*   Pembuatan dasbor supervisor untuk memantau status inspeksi.
-*   Integrasi library **ExcelJS** / **PhpSpreadsheet** untuk membaca template `.xlsx`, menyisipkan data transaksi, serta menyimpannya kembali sebagai file siap unduh.
-*   Optimasi CSS cetak halaman agar hasil print dari browser langsung rapi.
-
-### Tahap 5: Pengujian (Testing) & Deployment (Minggu 7)
-*   Pengujian fungsionalitas di berbagai ukuran layar handphone (iOS dan Android).
-*   Pengujian ekspor file Excel dan verifikasi apakah format cetak sudah sama persis dengan yang lama.
-*   Deployment ke server produksi (menggunakan Docker/VPS) dan konfigurasi SSL/domain.
-
----
-
-## 6. Contoh Implementasi Ekspor Excel (Node.js/ExcelJS)
-
-Sebagai gambaran teknis, berikut potongan kode sederhana bagaimana aplikasi akan mengisi data ke dalam file template Excel yang sudah ada tanpa merusak layout:
-
-```javascript
-const ExcelJS = require('exceljs');
-
-async function generateReport(inspectionData) {
-  const workbook = new ExcelJS.Workbook();
-  // Membaca file template excel yang sudah ada format cetaknya
-  await workbook.xlsx.readFile('./templates/template_inspeksi_airside.xlsx');
-  
-  const worksheet = workbook.getWorksheet('Runway');
-  
-  // Mengisi cell dinamis berdasarkan data dari database
-  worksheet.getCell('C4').value = inspectionData.date;
-  worksheet.getCell('C5').value = inspectionData.inspectorName;
-  
-  // Mengisi baris tabel checklist secara dinamis
-  inspectionData.items.forEach((item, index) => {
-    const rowNumber = 10 + index; // Contoh baris tabel dimulai dari baris ke-10
-    worksheet.getCell(`D${rowNumber}`).value = item.status;
-    worksheet.getCell(`E${rowNumber}`).value = item.remarks;
-  });
-
-  // Menyimpan file baru hasil generate yang siap didownload/diprint
-  await workbook.xlsx.writeFile(`./exports/Laporan_Inspeksi_${inspectionData.date}.xlsx`);
-}
+```
+[Upload DXF + set ARP/rotasi] ──► [Dashboard: overlay + detailing station]
+        │
+        ▼ (patroli lapangan)
+[Inspeksi checklist existing]        [Gambar rectangle kerusakan di peta]
+        │                                     │
+        ▼                                     ▼
+[Approval supervisor]                [DB: posisi, koordinat, luasan, jenis, severity]
+                                              │
+                                              ▼
+                              [Marka: monitoring kondisi marka]
+                                              │
+                                              ▼
+                              [PCI lanjutan: survey sample unit → skor & rating]
 ```
 
+## 7. Tahapan Implementasi (mapping file)
+
+| Tahap | Isi | File |
+| :--- | :--- | :--- |
+| 1 | Skema DB + migrasi + seed | `prisma/schema.prisma`, `prisma/seed.ts` |
+| 2 | Lib geo/DXF/PCI/constants | `src/lib/geo.ts`, `src/lib/dxf.ts`, `src/lib/pci-data.ts`, `src/lib/pci.ts`, `src/lib/constants.ts` |
+| 3 | REST API monitoring | `src/app/api/{config,facilities,map-layers,damages,markings,pci/*}` |
+| 4 | Shell & Dashboard + peta | `src/components/AppShell.tsx`, `DashboardView.tsx`, `FacilityMap.tsx`, `DamageFormModal.tsx`, `DxfUploadModal.tsx` |
+| 5 | Menu Marka & PCI | `src/components/MarkaView.tsx`, `PciView.tsx` |
+| 6 | Routing halaman | `src/app/page.tsx`, `src/app/{inspeksi,marka,pci}/page.tsx`, `layout.tsx` |
+| 7 | Validasi | migrate → seed → `next build` → smoke test API & UI |
+
+## 8. Risiko & Mitigasi
+
+| Risiko | Mitigasi |
+| :--- | :--- |
+| Kurva deduct ASTM belum persis standar | Data terpisah di `pci-data.ts`, mudah dikalibrasi; prosedur DV→CDV→PCI sesuai ASTM |
+| Georeferencing DXF meleset | Konfigurasi ref point/rotasi/skala per layer + verifikasi visual terhadap citra satelit |
+| DXF besar → berat render | Parser membatasi jumlah entity, filter per layer, render polyline sederhana |
+| Citra satelit butuh internet | Basemap tetap berfungsi tanpa tile (polygon+DXF), koordinat lokal tidak bergantung tile |
+| Akurasi konversi koordinat | Local tangent plane cukup untuk skala bandara (< 0,1 m); dokumentasi rumus pada kode |
+
+## 9. Status Implementasi
+
+- [x] plan.md
+- [x] Skema Prisma + migrasi + seed data monitoring
+- [x] Lib geo (koordinat), DXF parser, engine PCI
+- [x] API monitoring lengkap (config, facilities, map-layers, damages, markings, pci)
+- [x] Menu Dashboard/Inspeksi/Marka/PCI + peta + DXF overlay + rectangle kerusakan
+- [x] Build berhasil (17 halaman, 14 API endpoint)
+- [x] Seed data monitoring (facilities, damages, markings, PCI section + survey)
+
+
 ---
-
-*Catatan: Struktur detail dari template Excel asli Anda (seperti jumlah kolom, nama item checklist, dan posisi logo) akan langsung diintegrasikan pada Tahap 1 pengembangan.*
-

@@ -1,0 +1,1 @@
+ALTER TABLE "Facility" ADD COLUMN "pciCorrection" REAL NOT NULL DEFAULT 100;

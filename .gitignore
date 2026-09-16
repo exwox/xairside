@@ -20,9 +20,17 @@
 # production
 /build
 
+# database & uploads
+prisma/*.db
+prisma/*.db-journal
+public/uploads/*
+!public/uploads/.gitkeep
+inspect_output.txt
+
 # misc
 .DS_Store
 *.pem
+.vscode/
 
 # debug
 npm-debug.log*
@@ -39,3 +47,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+

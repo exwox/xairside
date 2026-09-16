@@ -2,13 +2,180 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Inspection } from '@/types';
-import { X, FileSpreadsheet, Printer, ShieldCheck, ChevronLeft, Eraser } from 'lucide-react';
+import { X, FileSpreadsheet, Printer, ShieldCheck, ChevronLeft, Eraser, ZoomIn, ZoomOut } from 'lucide-react';
 
 interface InspectionDetailViewProps {
   inspectionId: string;
   onClose: () => void;
   onApproved: () => void;
 }
+
+import runwayGrid from '../../public/templates/runway_grid.json';
+
+const COLS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q','R','S','T','U','V','W','X','Y','Z','AA','AB','AC','AD'];
+
+function MatrixResultsTable({ inspection }: { inspection: Inspection }) {
+  const [zoom, setZoom] = useState<number>(75); // Default zoom out
+  const results = (typeof inspection.matrixResults === 'string'
+    ? JSON.parse(inspection.matrixResults)
+    : inspection.matrixResults) || {};
+
+  const renderReadOnlyCell = (cell: any) => {
+    // If it's a signature cell (AA88) and report is approved, show the signature image!
+    if (cell.address === 'AA88' && inspection.signature && inspection.status === 'APPROVED') {
+      return (
+        <div className="flex flex-col items-center justify-center py-1">
+          <img
+            src={inspection.signature}
+            alt="Supervisor Signature"
+            className="h-10 object-contain max-w-[120px]"
+          />
+        </div>
+      );
+    }
+
+    // Auto-fill inspector name in Z50
+    if (cell.address === 'Z50') {
+      return <span className="font-bold text-gray-800">{inspection.inspector.name}</span>;
+    }
+
+    // Auto-fill supervisor name in AA91 if approved
+    if (cell.address === 'AA91' && inspection.supervisor) {
+      return <span className="font-bold text-gray-800">{inspection.supervisor.name}</span>;
+    }
+
+    if (cell.cellType === 'signature') {
+      const sigData = results[cell.address];
+      if (sigData) {
+        return (
+          <div className="absolute inset-0 w-full h-full flex flex-col items-center justify-center p-0.5">
+            <img
+              src={sigData}
+              alt="Signature"
+              className="w-full h-full max-h-full object-contain p-1"
+            />
+          </div>
+        );
+      }
+    }
+
+    if (cell.isEditable) {
+      if (cell.cellType === 'checkbox') {
+        const isChecked = !!results[cell.address];
+        return isChecked ? <span className="font-bold text-emerald-800 text-xs">✓</span> : '';
+      }
+      
+      const cellValStr = typeof cell.value === 'string' ? cell.value : String(cell.value ?? '');
+      const val = results[cell.address] ?? (cellValStr.startsWith('<<') ? '' : cell.value);
+      return <span className="text-gray-800">{val}</span>;
+    }
+
+    return cell.value;
+  };
+
+  return (
+    <div className="bg-gray-100 border border-gray-300 rounded-xl overflow-hidden shadow-sm">
+      <div className="bg-emerald-800 text-white px-4 py-2 flex items-center justify-between font-sans text-xs select-none">
+        <span className="font-bold tracking-wide">Excel Sheet Preview (Read-Only)</span>
+        <div className="flex items-center space-x-3">
+          {/* Zoom Controls */}
+          <div className="flex items-center space-x-1 bg-emerald-700/60 text-white px-2 py-0.5 rounded border border-emerald-500 text-[10px] font-semibold select-none">
+            <button
+              type="button"
+              onClick={() => setZoom(z => Math.max(50, z - 10))}
+              className="hover:bg-emerald-600/50 p-0.5 rounded cursor-pointer"
+              title="Zoom Out"
+            >
+              <ZoomOut className="h-3 w-3" />
+            </button>
+            <span className="w-8 text-center">{zoom}%</span>
+            <button
+              type="button"
+              onClick={() => setZoom(z => Math.min(150, z + 10))}
+              className="hover:bg-emerald-600/50 p-0.5 rounded cursor-pointer"
+              title="Zoom In"
+            >
+              <ZoomIn className="h-3 w-3" />
+            </button>
+          </div>
+          <span className="text-[10px] bg-emerald-700/60 px-2 py-0.5 rounded">Lembar Aktif: Runway</span>
+        </div>
+      </div>
+      <div className="overflow-auto max-h-[600px] w-full relative" style={{ zoom: `${zoom}%` }}>
+        <table className="min-w-[1500px] border-collapse bg-white font-mono text-[10px] w-full text-gray-800 border border-gray-300">
+          <thead>
+            <tr className="bg-gray-100 text-gray-500 text-center select-none text-[9px] h-5">
+              <th className="sticky top-0 left-0 bg-gray-200 border-r border-b border-gray-300 w-8 z-30 font-bold text-center"></th>
+              {COLS.map((col) => (
+                <th key={col} className="sticky top-0 bg-gray-100 border border-gray-300 font-semibold min-w-16 text-center z-20">{col}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {runwayGrid.map((row: any, rIdx: number) => (
+              <tr key={rIdx} className="h-7 hover:bg-gray-50/50">
+                <td className="sticky left-0 bg-gray-150 text-gray-500 border border-gray-300 text-center font-bold select-none text-[8px] w-8 z-10">
+                  {rIdx + 1}
+                </td>
+                {row.map((cell: any, cIdx: number) => {
+                  if (cell.isMerged && !cell.isMaster) {
+                    return null;
+                  }
+                  return (
+                    <td
+                      key={cIdx}
+                      rowSpan={cell.rowSpan > 1 ? cell.rowSpan : undefined}
+                      colSpan={cell.colSpan > 1 ? cell.colSpan : undefined}
+                      style={{
+                        backgroundColor: cell.style.bgColor ? '#' + cell.style.bgColor.slice(2) : undefined,
+                        fontWeight: cell.style.isBold ? 'bold' : 'normal',
+                        fontStyle: cell.style.isItalic ? 'italic' : 'normal',
+                        fontSize: `${cell.style.fontSize - 1}px`,
+                        color: cell.style.fontColor ? '#' + cell.style.fontColor.slice(2) : undefined,
+                        textAlign: cell.style.alignH === 'left' ? 'left' : cell.style.alignH === 'center' ? 'center' : cell.style.alignH === 'right' ? 'right' : 'left',
+                        verticalAlign: cell.style.alignV === 'middle' ? 'middle' : cell.style.alignV === 'top' ? 'top' : cell.style.alignV === 'bottom' ? 'bottom' : 'middle',
+                      }}
+                      className="border border-gray-300 px-1 py-0.5 relative"
+                    >
+                      {renderReadOnlyCell(cell)}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Excel-style Sheet Tabs */}
+      <div className="bg-gray-100 border-t border-gray-300 px-4 py-1 flex items-center space-x-1 text-xs select-none">
+        <span className="font-bold text-gray-400 mr-2 text-[10px]">LEMBAR:</span>
+        <button
+          type="button"
+          className="bg-white border-x border-t border-gray-300 px-3 py-1 font-semibold text-emerald-800 rounded-t shadow-sm"
+        >
+          Runway
+        </button>
+        <button
+          type="button"
+          disabled
+          className="text-gray-400 border-x border-t border-transparent px-3 py-1 cursor-not-allowed text-[11px]"
+        >
+          Taxiway (Belum Tersedia)
+        </button>
+        <button
+          type="button"
+          disabled
+          className="text-gray-400 border-x border-t border-transparent px-3 py-1 cursor-not-allowed text-[11px]"
+        >
+          Apron (Belum Tersedia)
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Read-only grid view complete
 
 export default function InspectionDetailView({ inspectionId, onClose, onApproved }: InspectionDetailViewProps) {
   const [inspection, setInspection] = useState<Inspection | null>(null);
@@ -231,6 +398,22 @@ export default function InspectionDetailView({ inspectionId, onClose, onApproved
               <span className="text-gray-800 font-semibold">: {formattedDate}</span>
             </div>
             <div className="flex">
+              <span className="w-36 text-gray-500 font-medium">Shift Kerja</span>
+              <span className="text-gray-800 font-semibold">
+                : Shift {(() => {
+                  if (!inspection.matrixResults) return '1';
+                  if (typeof inspection.matrixResults === 'string') {
+                    try {
+                      return JSON.parse(inspection.matrixResults).shift || '1';
+                    } catch {
+                      return '1';
+                    }
+                  }
+                  return (inspection.matrixResults as any).shift || '1';
+                })()}
+              </span>
+            </div>
+            <div className="flex">
               <span className="w-36 text-gray-500 font-medium">Petugas (Inspector)</span>
               <span className="text-gray-800 font-semibold">: {inspection.inspector.name}</span>
             </div>
@@ -238,7 +421,7 @@ export default function InspectionDetailView({ inspectionId, onClose, onApproved
           <div className="space-y-2">
             <div className="flex">
               <span className="w-36 text-gray-500 font-medium">Status Laporan</span>
-              <span className={`font-bold uppercase : ${
+              <span className={`font-bold uppercase ${
                 inspection.status === 'APPROVED' ? 'text-green-700' : 'text-orange-600'
               }`}>
                 : {inspection.status}
@@ -253,47 +436,49 @@ export default function InspectionDetailView({ inspectionId, onClose, onApproved
           </div>
         </div>
 
-        {/* Checklist Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse border border-gray-300">
-            <thead className="bg-blue-900 text-white font-bold uppercase text-[10px]">
-              <tr>
-                <th className="border border-gray-300 px-3 py-2 text-center w-10">No</th>
-                <th className="border border-gray-300 px-3 py-2 text-center w-24">Zona</th>
-                <th className="border border-gray-300 px-3 py-2 w-36">Kategori</th>
-                <th className="border border-gray-300 px-3 py-2 w-52">Item Pemeriksaan</th>
-                <th className="border border-gray-300 px-3 py-2 text-center w-20">Status</th>
-                <th className="border border-gray-300 px-3 py-2">Catatan / Temuan</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-300 text-gray-800">
-              {inspection.details.map((detail, index) => (
-                <tr key={detail.id} className="hover:bg-gray-50/50">
-                  <td className="border border-gray-300 px-3 py-2 text-center font-semibold">{index + 1}</td>
-                  <td className="border border-gray-300 px-3 py-2 text-center font-bold text-[10px] text-blue-800">
-                    {detail.item.zone}
-                  </td>
-                  <td className="border border-gray-300 px-3 py-2 text-gray-500 font-medium">{detail.item.category}</td>
-                  <td className="border border-gray-300 px-3 py-2 font-semibold text-gray-700">{detail.item.name}</td>
-                  <td className="border border-gray-300 px-2 py-1.5 text-center">
-                    <span className={`inline-block w-full text-center px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                      detail.status === 'BAIK'
-                        ? 'bg-green-100 text-green-800 border border-green-200'
-                        : detail.status === 'RUSAK'
-                          ? 'bg-red-100 text-red-800 border border-red-200'
-                          : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-                    }`}>
-                      {detail.status}
-                    </span>
-                  </td>
-                  <td className="border border-gray-300 px-3 py-2 font-medium text-gray-600">
-                    {detail.remarks || '-'}
-                  </td>
+        {/* Matrix Results (matches YIA worksheet layout) */}
+        {inspection.matrixResults && Object.keys(inspection.matrixResults).length > 0 ? (
+          <MatrixResultsTable inspection={inspection} />
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse border border-gray-300">
+              <thead className="bg-blue-900 text-white font-bold uppercase text-[10px]">
+                <tr>
+                  <th className="border border-gray-300 px-3 py-2 text-center w-10">No</th>
+                  <th className="border border-gray-300 px-3 py-2 text-center w-24">Zona</th>
+                  <th className="border border-gray-300 px-3 py-2 w-36">Kategori</th>
+                  <th className="border border-gray-300 px-3 py-2 w-52">Item Pemeriksaan</th>
+                  <th className="border border-gray-300 px-3 py-2 text-center w-20">Status</th>
+                  <th className="border border-gray-300 px-3 py-2">Catatan / Temuan</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-gray-300 text-gray-800">
+                {inspection.details.map((detail, index) => (
+                  <tr key={detail.id} className="hover:bg-gray-50/50">
+                    <td className="border border-gray-300 px-3 py-2 text-center font-semibold">{index + 1}</td>
+                    <td className="border border-gray-300 px-3 py-2 text-center font-bold text-[10px] text-blue-800">
+                      {detail.item.zone}
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 text-gray-500 font-medium">{detail.item.category}</td>
+                    <td className="border border-gray-300 px-3 py-2 font-semibold text-gray-700">{detail.item.name}</td>
+                    <td className="border border-gray-300 px-2 py-1.5 text-center">
+                      <span className={`inline-block w-full text-center px-1 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                        detail.status === 'S'
+                          ? 'bg-green-100 text-green-800 border border-green-200'
+                          : 'bg-red-100 text-red-800 border border-red-200'
+                      }`}>
+                        {detail.status}
+                      </span>
+                    </td>
+                    <td className="border border-gray-300 px-3 py-2 font-medium text-gray-600">
+                      {detail.remarks || '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
 
         {/* Signatures Section */}

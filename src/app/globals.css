@@ -1,6 +1,320 @@
 @import "tailwindcss";
+@import "leaflet/dist/leaflet.css";
+
+/* ===== Leaflet overrides untuk dashboard airside ===== */
+.leaflet-container {
+  font-family: inherit;
+  background: #090d16;
+}
+
+/* Custom Tooltip Leaflet Kontras Tinggi & Tajam */
+.leaflet-tooltip {
+  background-color: rgba(15, 23, 42, 0.95) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  border-radius: 6px !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.7) !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+}
+
+.leaflet-tooltip-top:before {
+  border-top-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-bottom:before {
+  border-bottom-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-left:before {
+  border-left-color: rgba(15, 23, 42, 0.95) !important;
+}
+.leaflet-tooltip-right:before {
+  border-right-color: rgba(15, 23, 42, 0.95) !important;
+}
+
+.airside-label {
+  background: rgba(15, 23, 42, 0.95) !important;
+  color: #38bdf8 !important;
+  border: 1px solid rgba(56, 189, 248, 0.5) !important;
+  border-radius: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 3px 8px !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.7) !important;
+  text-shadow: 0 1px 3px #000 !important;
+  white-space: nowrap !important;
+}
+
+.dxf-text-label {
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(253, 230, 138, 0.4);
+  border-radius: 4px;
+  padding: 1px 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+  color: #fde68a;
+  font-size: 10px;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+  white-space: nowrap;
+}
+
+.leaflet-popup-content-wrapper {
+  background: rgba(15, 23, 42, 0.95) !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.8) !important;
+}
+
+.leaflet-popup-tip {
+  background: rgba(15, 23, 42, 0.95) !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 14px;
+  font-size: 12px;
+}
+
+/* Popup kerusakan dibuat ringkas agar tidak menutupi area inspeksi di peta. */
+.damage-map-popup-shell .leaflet-popup-content-wrapper {
+  overflow: hidden;
+  border-color: rgba(148, 163, 184, 0.3) !important;
+  border-radius: 10px !important;
+}
+
+.damage-map-popup-shell .leaflet-popup-content {
+  width: 218px !important;
+  margin: 0 !important;
+}
+
+.damage-map-popup-shell .leaflet-popup-close-button {
+  top: 4px !important;
+  right: 4px !important;
+  width: 24px !important;
+  height: 24px !important;
+  color: #cbd5e1 !important;
+  font-size: 18px !important;
+  line-height: 22px !important;
+}
+
+.damage-map-popup-shell .leaflet-popup-close-button:hover {
+  color: #ffffff !important;
+}
+
+.damage-map-popup {
+  border-left: 3px solid var(--damage-accent, #ef4444);
+  color: #f8fafc;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.damage-map-popup__badges {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 9px 32px 0 9px;
+}
+
+.damage-map-popup__code,
+.damage-map-popup__severity,
+.damage-map-popup__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 18px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.damage-map-popup__code {
+  padding: 3px 5px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #020617;
+  color: #e2e8f0;
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+.damage-map-popup__severity {
+  justify-content: center;
+  min-width: 19px;
+  padding: 3px 5px;
+  background: var(--damage-accent, #ef4444);
+  color: #0f172a;
+}
+
+.damage-map-popup__status {
+  min-width: 0;
+  overflow: hidden;
+  padding: 3px 5px;
+  background: rgba(51, 65, 85, 0.9);
+  color: #e2e8f0;
+  text-overflow: ellipsis;
+}
+
+.damage-map-popup__title {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 6px 9px 7px;
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+
+.damage-map-popup__details {
+  margin: 0;
+  padding: 7px 9px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+  background: rgba(2, 6, 23, 0.28);
+}
+
+.damage-map-popup__details > div {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 7px;
+  min-height: 18px;
+}
+
+.damage-map-popup__details dt {
+  color: #94a3b8;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.damage-map-popup__details dd {
+  overflow: hidden;
+  margin: 0;
+  color: #f8fafc;
+  font-size: 10px;
+  font-weight: 750;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.damage-map-popup__photos {
+  padding: 7px 9px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.damage-map-popup__photos-title {
+  margin-bottom: 5px;
+  color: #cbd5e1;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.damage-map-popup__photo-list {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  touch-action: pan-x;
+}
+
+.damage-map-popup__photo-link {
+  display: block;
+  flex: 0 0 100%;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  border-radius: 6px;
+  background: #020617;
+  scroll-snap-align: start;
+}
+
+.damage-map-popup__photo-link img {
+  display: block;
+  width: 100%;
+  height: 118px;
+  object-fit: contain;
+}
+
+.damage-map-popup__photos-hint {
+  padding-top: 4px;
+  color: #94a3b8;
+  font-size: 8px;
+}
+
+.damage-map-popup__hint {
+  padding: 5px 9px 6px;
+  color: #94a3b8;
+  font-size: 8px;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.airside-vertex {
+  background: transparent;
+  border: none;
+}
+
+/* Label grid harus transparan pada wrapper Leaflet agar tidak muncul kotak putih. */
+.sample-label-marker,
+.station-label-marker,
+.slab-label-marker {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+/* Hindari tumpukan teks saat seluruh fasilitas sedang terlihat. */
+.airside-map .sample-label-marker,
+.airside-map .station-label-marker {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  transition: opacity 120ms ease;
+}
+
+.airside-map.airside-map--show-sample-labels .sample-label-marker,
+.airside-map.airside-map--show-station-labels .station-label-marker {
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+.slab-label-marker {
+  pointer-events: none !important;
+}
+
+.slab-map-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 14px;
+  padding: 2px 5px;
+  transform: translate(-50%, -50%);
+  /* Warna label slab mengikuti garis batas slab (hijau emerald) di peta. */
+  border: 1px solid rgba(52, 211, 153, 0.72);
+  border-radius: 4px;
+  background: rgba(2, 44, 34, 0.86);
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.42);
+  color: #d1fae5;
+  font-family: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 8px;
+  font-weight: 750;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+  white-space: nowrap;
+  pointer-events: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+.slab-map-label--admin {
+  border-color: rgba(16, 185, 129, 0.88);
+  background: rgba(6, 78, 59, 0.92);
+  box-shadow: 0 2px 8px rgba(2, 6, 23, 0.52);
+}
 
 :root {
+  color-scheme: light;
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -12,15 +326,46 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Aplikasi memakai permukaan form terang. Beri warna dasar eksplisit supaya
+ * input tidak mewarisi teks putih ketika sistem operasi menggunakan dark mode.
+ * Aturan berada di layer base agar utility warna komponen tetap menang.
+ */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
+  select,
+  textarea {
+    background-color: #ffffff;
+    color: #0f172a;
+    caret-color: #0f172a;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #64748b;
+    opacity: 1;
+  }
+
+  option,
+  optgroup {
+    background-color: #ffffff;
+    color: #0f172a;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):disabled,
+  select:disabled,
+  textarea:disabled,
+  input[readonly],
+  textarea[readonly] {
+    background-color: #f1f5f9;
+    color: #475569;
+    -webkit-text-fill-color: #475569;
+    opacity: 1;
+  }
 }

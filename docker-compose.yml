@@ -5,6 +5,9 @@ services:
       - "3000:3000"
     volumes:
       - ./prisma:/app/prisma
+      # Foto kerusakan di-upload runtime ke public/uploads — di-mount agar
+      # tidak hilang saat container di-recreate/rebuild.
+      - ./public/uploads:/app/public/uploads
     environment:
       - DATABASE_URL=file:./dev.db
     restart: always
