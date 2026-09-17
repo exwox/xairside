@@ -1,10 +1,11 @@
 import AppShell from '@/components/AppShell';
 import KerusakanView from '@/components/KerusakanView';
+import PageAccessGate from '@/components/PageAccessGate';
 
 export default function KerusakanPage() {
   return (
-    <AppShell>
+    <PageAccessGate page="damages"><AppShell>
       <KerusakanView />
-    </AppShell>
+    </AppShell></PageAccessGate>
   );
 }

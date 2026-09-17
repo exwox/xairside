@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type * as LeafletNS from 'leaflet';
+import { installMapRotation, type MapRotationController } from '@/lib/leaflet-rotation';
 import type { Facility } from '@/types';
 import { FACILITY_TYPE_COLORS } from '@/lib/constants';
 import {
@@ -26,6 +27,8 @@ function syncGridLabelVisibility(map: LeafletNS.Map) {
 }
 
 interface AdminMapProps {
+  arpLat: number;
+  arpLng: number;
   facilities: Facility[];
   selectedId: string;
   vertices: { lat: number; lng: number }[];
@@ -46,6 +49,8 @@ interface AdminMapProps {
 }
 
 export default function AdminMap({
+  arpLat,
+  arpLng,
   facilities,
   selectedId,
   vertices,
@@ -64,6 +69,8 @@ export default function AdminMap({
   onVerticesChange,
   onSelectFacility,
 }: AdminMapProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const rotationRef = useRef<MapRotationController | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletNS.Map | null>(null);
   const LRef = useRef<typeof LeafletNS | null>(null);
@@ -73,6 +80,8 @@ export default function AdminMap({
   const polygonRef = useRef<LeafletNS.Polygon | null>(null);
   const stationLinesGroupRef = useRef<LeafletNS.LayerGroup | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const polyDragCleanupRef = useRef<(() => void) | null>(null);
+  const suppressClickUntilRef = useRef(0);
 
   const isDraggingRef = useRef(false);
   const isPolyDraggingRef = useRef(false);
@@ -82,21 +91,18 @@ export default function AdminMap({
   const prevVertsCountRef = useRef<number>(0);
   const fittedSelectionRef = useRef<string>('');
 
-  const propsRef = useRef({ facilities, selectedId, vertices, mapRotationDeg, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, onVerticesChange, onSelectFacility });
-  propsRef.current = { facilities, selectedId, vertices, mapRotationDeg, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, onVerticesChange, onSelectFacility };
+  const propsRef = useRef({ arpLat, arpLng, facilities, selectedId, vertices, mapRotationDeg, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, onVerticesChange, onSelectFacility });
+  propsRef.current = { arpLat, arpLng, facilities, selectedId, vertices, mapRotationDeg, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, onVerticesChange, onSelectFacility };
 
-  // Rotasi Container Peta dengan Transform CSS + Counter-Rotasi Mouse
   useEffect(() => {
-    if (containerRef.current) {
-      const rot = mapRotationDeg ?? 0;
-      containerRef.current.style.transform = rot ? `rotate(${rot}deg)` : 'none';
-      containerRef.current.style.transformOrigin = 'center center';
-      containerRef.current.style.transition = 'transform 0.3s ease-out';
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-      }
-    }
+    rotationRef.current?.setRotation(mapRotationDeg ?? 0);
   }, [mapRotationDeg]);
+
+  useEffect(() => {
+    if (containerRef.current && !isPolyDraggingRef.current) {
+      containerRef.current.style.cursor = selectedId && isShiftPressedRef.current ? 'grab' : '';
+    }
+  }, [selectedId]);
 
   // Init map
   useEffect(() => {
@@ -106,10 +112,12 @@ export default function AdminMap({
       if (cancelled || !containerRef.current || mapRef.current) return;
       LRef.current = L;
       const map = L.map(containerRef.current, {
-        center: [0.9569, 104.5311],
+        center: [propsRef.current.arpLat, propsRef.current.arpLng],
         zoom: 16,
         maxZoom: 22,
         zoomControl: true,
+        // Shift+drag is reserved for moving facilities in the editor.
+        boxZoom: false,
         preferCanvas: true,
       });
       L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -122,30 +130,17 @@ export default function AdminMap({
       activeLayerRef.current = L.layerGroup().addTo(map);
       stationLinesGroupRef.current = L.layerGroup().addTo(map);
 
-      // Patch mouseEventToContainerPoint untuk rotasi peta presisi tanpa mengacaukan drag & edit vertex
-      const origMouseEventToContainerPoint = map.mouseEventToContainerPoint.bind(map);
-      map.mouseEventToContainerPoint = function (e: MouseEvent) {
-        const pt = origMouseEventToContainerPoint(e);
-        const rot = propsRef.current.mapRotationDeg ?? 0;
-        if (!rot) return pt;
-        const container = map.getContainer();
-        const rect = container.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        const dx = pt.x - cx;
-        const dy = pt.y - cy;
-        const rad = (-rot * Math.PI) / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        return L.point(cx + (dx * cos - dy * sin), cy + (dx * sin + dy * cos));
-      };
+      rotationRef.current = installMapRotation(
+        L, map, viewportRef.current!, propsRef.current.mapRotationDeg ?? 0,
+      );
 
       mapRef.current = map;
 
       // Click on map to add vertex directly
       map.on('click', (e: LeafletNS.LeafletMouseEvent) => {
         const { selectedId: selId, vertices: selVerts, onVerticesChange: onChange } = propsRef.current;
-        if (!selId) return;
+        if (!selId || e.originalEvent.shiftKey || e.originalEvent.altKey
+          || isPolyDraggingRef.current || Date.now() < suppressClickUntilRef.current) return;
 
         const target = e.originalEvent.target as HTMLElement;
         if (target && (target.classList.contains('airside-vertex') || target.closest('.leaflet-interactive'))) {
@@ -156,10 +151,6 @@ export default function AdminMap({
         const updated = [...selVerts, newVert];
         onChange(updated);
       });
-
-      // Fit semua fasilitas dipindah ke effect autoFit di bawah: saat kembali ke
-      // halaman Admin, peta sering siap sebelum /api/facilities selesai sehingga
-      // fit di dalam init akan terlewat dan peta tertinggal di koordinat default.
 
       map.on('zoomend', () => {
         syncGridLabelVisibility(map);
@@ -178,43 +169,42 @@ export default function AdminMap({
       const handleKeyUp = (e: KeyboardEvent) => {
         if (e.key === 'Shift' || e.key === 'Alt') {
           isShiftPressedRef.current = false;
-          if (containerRef.current) containerRef.current.style.cursor = '';
+          if (containerRef.current && !isPolyDraggingRef.current) {
+            containerRef.current.style.cursor = '';
+          }
         }
+      };
+      const handleBlur = () => {
+        isShiftPressedRef.current = false;
+        if (containerRef.current) containerRef.current.style.cursor = '';
       };
       window.addEventListener('keydown', handleKeyDown);
       window.addEventListener('keyup', handleKeyUp);
+      window.addEventListener('blur', handleBlur);
 
       // Clean up pada unmount
       return () => {
         cancelled = true;
         window.removeEventListener('keydown', handleKeyDown);
         window.removeEventListener('keyup', handleKeyUp);
+        window.removeEventListener('blur', handleBlur);
+        polyDragCleanupRef.current?.();
+        polyDragCleanupRef.current = null;
+        rotationRef.current?.destroy();
+        rotationRef.current = null;
         mapRef.current?.remove();
         mapRef.current = null;
       };
   }, []);
 
-  // Fit semua fasilitas sekali begitu data tersedia. Effect init sengaja tidak
-  // melakukan fit: saat kembali ke halaman Admin, peta sering sudah siap
-  // (chunk ter-cache) sebelum /api/facilities selesai, sehingga fit di init
-  // terlewat dan peta tertinggal di koordinat default. Guard ref memastikan
-  // refresh berikutnya (setelah simpan/edit) tidak memindahkan view pengguna.
-  const autoFitDoneRef = useRef(false);
+  // Fokus awal mengikuti ARP bandara aktif. Refresh fasilitas tidak menggeser
+  // tampilan; fit ke polygon hanya dilakukan saat pengguna memilih fasilitas.
   useEffect(() => {
-    const L = LRef.current;
     const map = mapRef.current;
-    if (!L || !map || autoFitDoneRef.current || facilities.length === 0) return;
-    const allPoints: [number, number][] = [];
-    for (const f of facilities) {
-      if (!f.polygonJson) continue;
-      try {
-        (JSON.parse(f.polygonJson) as { lat: number; lng: number }[]).forEach((p) => allPoints.push([p.lat, p.lng]));
-      } catch { /* ignore */ }
-    }
-    if (allPoints.length === 0) return;
-    autoFitDoneRef.current = true;
-    map.fitBounds(L.latLngBounds(allPoints).pad(0.2));
-  }, [facilities, mapReady]);
+    if (!map || !mapReady || !Number.isFinite(arpLat) || !Number.isFinite(arpLng)
+      || Math.abs(arpLat) > 90 || Math.abs(arpLng) > 180) return;
+    map.stop().setView([arpLat, arpLng], 16, { animate: false });
+  }, [arpLat, arpLng, mapReady]);
 
   // 1. Render static polygons for non-selected facilities
   useEffect(() => {
@@ -235,7 +225,7 @@ export default function AdminMap({
       const color = f.color || FACILITY_TYPE_COLORS[f.type] || '#38bdf8';
       L.polygon(
         poly.map((p) => [p.lat, p.lng] as [number, number]),
-        { color, weight: 2, fillColor: color, fillOpacity: 0.15, dashArray: '4 3' }
+        { color, weight: 2, fillColor: color, fillOpacity: 0.15, dashArray: '4 3', bubblingMouseEvents: false }
       )
         .bindTooltip(`${f.code} — ${f.name}`, { direction: 'center', className: 'airside-label' })
         .on('click', () => onSelect(f.id))
@@ -279,7 +269,7 @@ export default function AdminMap({
           L.marker([st.rightLatLng.lat, st.rightLatLng.lng], {
             icon: L.divIcon({
               className: 'station-label-marker',
-              html: `<div style="font-size:8px;font-family:monospace;color:#fef08a;background:rgba(15,23,42,0.7);padding:1px 2px;border-radius:2px;transform:translate(3px,-50%) rotate(${st.textRotationDeg}deg);transform-origin:left center">${st.stationText}</div>`,
+              html: `<div style="font-size:8px;font-family:monospace;color:#fef08a;background:rgba(15,23,42,0.7);padding:1px 2px;border-radius:2px;transform:translate(3px,-50%);transform-origin:left center">${st.stationText}</div>`,
               iconSize: [0, 0], iconAnchor: [0, 0]
             }), interactive: false
           }).addTo(staticGroup);
@@ -440,7 +430,7 @@ export default function AdminMap({
         L.marker([st.rightLatLng.lat, st.rightLatLng.lng], {
           icon: L.divIcon({
             className: 'station-label-marker',
-            html: `<div style="font-size:9px;font-family:monospace;font-weight:bold;color:#fef08a;background:rgba(15,23,42,0.85);padding:1.5px 4px;border-radius:3px;border:1px solid #f59e0b;transform:translate(4px,-50%) rotate(${st.textRotationDeg}deg);transform-origin:left center">${st.stationText}</div>`,
+            html: `<div style="font-size:9px;font-family:monospace;font-weight:bold;color:#fef08a;background:rgba(15,23,42,0.85);padding:1.5px 4px;border-radius:3px;border:1px solid #f59e0b;transform:translate(4px,-50%);transform-origin:left center">${st.stationText}</div>`,
             iconSize: [0, 0], iconAnchor: [0, 0]
           }), interactive: false
         }).addTo(stGroup);
@@ -508,6 +498,8 @@ export default function AdminMap({
     const isCountChanged = prevVertsCountRef.current !== selVerts.length;
 
     if (isSelChanged || isCountChanged || !polygonRef.current) {
+      polyDragCleanupRef.current?.();
+      polyDragCleanupRef.current = null;
       prevSelectedIdRef.current = selId;
       prevVertsCountRef.current = selVerts.length;
 
@@ -559,26 +551,37 @@ export default function AdminMap({
         weight: 3,
         fillColor: color,
         fillOpacity: 0.25,
+        bubblingMouseEvents: false,
       }).addTo(activeGroup);
       polygonRef.current = polygon;
 
-      // Polygon mouse drag via Shift / Alt key
+      let restoreMapDragging = false;
+      let moved = false;
+      // Move the entire polygon with Shift+drag (Alt is also supported).
       polygon.on('mousedown', (e: LeafletNS.LeafletMouseEvent) => {
         const orig = e.originalEvent as MouseEvent;
+        if (orig.button !== 0) return;
         if (orig.shiftKey || orig.altKey || isShiftPressedRef.current) {
           isPolyDraggingRef.current = true;
           isDraggingRef.current = true;
+          moved = false;
           polyDragStartPosRef.current = e.latlng;
+          restoreMapDragging = map.dragging.enabled();
           map.dragging.disable();
-          if (orig.stopPropagation) orig.stopPropagation();
+          if (containerRef.current) containerRef.current.style.cursor = 'grabbing';
+          L.DomEvent.stop(orig);
         }
       });
 
-      const handlePolyMouseMove = (e: LeafletNS.LeafletMouseEvent) => {
+      const handlePolyMouseMove = (event: MouseEvent) => {
         if (!isPolyDraggingRef.current || !polyDragStartPosRef.current) return;
-        const dLat = e.latlng.lat - polyDragStartPosRef.current.lat;
-        const dLng = e.latlng.lng - polyDragStartPosRef.current.lng;
-        polyDragStartPosRef.current = e.latlng;
+        const latlng = map.mouseEventToLatLng(event);
+        const dLat = latlng.lat - polyDragStartPosRef.current.lat;
+        const dLng = latlng.lng - polyDragStartPosRef.current.lng;
+        if (!dLat && !dLng) return;
+        moved = true;
+        event.preventDefault();
+        polyDragStartPosRef.current = latlng;
 
         const updated = markerRefs.current.map((m) => {
           const pos = m.getLatLng();
@@ -597,12 +600,23 @@ export default function AdminMap({
           isPolyDraggingRef.current = false;
           isDraggingRef.current = false;
           polyDragStartPosRef.current = null;
-          map.dragging.enable();
+          if (moved) suppressClickUntilRef.current = Date.now() + 250;
+          if (restoreMapDragging) map.dragging.enable();
+          if (containerRef.current) containerRef.current.style.cursor = isShiftPressedRef.current ? 'grab' : '';
         }
       };
 
-      map.on('mousemove', handlePolyMouseMove);
-      map.on('mouseup', stopPolyDrag);
+      // Document listeners also catch releases outside the map. Dispose them
+      // when changing facilities so old polygons cannot keep handling a drag.
+      document.addEventListener('mousemove', handlePolyMouseMove);
+      document.addEventListener('mouseup', stopPolyDrag);
+      window.addEventListener('blur', stopPolyDrag);
+      polyDragCleanupRef.current = () => {
+        stopPolyDrag();
+        document.removeEventListener('mousemove', handlePolyMouseMove);
+        document.removeEventListener('mouseup', stopPolyDrag);
+        window.removeEventListener('blur', stopPolyDrag);
+      };
 
       polygon.bindTooltip(`${fac?.code || ''} (Tahan Shift + Drag Polygon untuk geser seluruh posisi)`, {
         direction: 'center',
@@ -671,5 +685,9 @@ export default function AdminMap({
     }
   }, [facilities, selectedId, vertices, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, mapReady]);
 
-  return <div ref={containerRef} className="airside-map w-full h-full" />;
+  return (
+    <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full overflow-hidden">
+      <div ref={containerRef} className="airside-map w-full h-full" />
+    </div>
+  );
 }

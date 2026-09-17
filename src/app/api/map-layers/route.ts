@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDxf } from '@/lib/dxf';
+import { requireAuthContext } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const layers = await prisma.mapLayer.findMany({ orderBy: { createdAt: 'desc' } });
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
+    const layers = await prisma.mapLayer.findMany({
+      where: { airportId: auth.activeAirportId },
+      orderBy: { createdAt: 'desc' },
+    });
     return NextResponse.json(
       layers.map((l) => ({ ...l, entities: JSON.parse(l.entitiesJson) as unknown[] }))
     );
@@ -17,6 +24,9 @@ export async function GET() {
 // Upload & parse DXF -> layer overlay peta
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const body = await req.json();
     if (!body.name || !body.content) {
       return NextResponse.json({ error: 'name dan content (isi DXF) wajib' }, { status: 400 });
@@ -33,6 +43,7 @@ export async function POST(req: Request) {
     }
     const layer = await prisma.mapLayer.create({
       data: {
+        airportId: auth.activeAirportId,
         name: body.name,
         fileName: body.fileName ?? 'drawing.dxf',
         refLat: Number(body.refLat ?? 0),

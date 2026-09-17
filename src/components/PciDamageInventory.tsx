@@ -212,6 +212,7 @@ export default function PciDamageInventory({ facilities, damages, config }: PciD
                   pciCorrection={activeFacilityPciCorrection}
                   onPciCorrectionChange={handlePciCorrectionChange}
                   onPciAverageChange={handlePciAverageChange}
+                  airportName={config?.airportName}
                 />
               ) : (
                 <div className="px-5 py-6 text-sm text-slate-600">

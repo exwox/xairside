@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 import { deleteDamagePhotoFile, deleteDamagePhotoFiles } from '@/lib/photo-file';
 import { validateDamageMeasurement, type DamageGeometryType, type DamageUnit } from '@/lib/damage-measurement';
 import { damageDefinitionForType, damageUnitForType, isDamageSeverityAllowed } from '@/lib/damage-unit-server';
@@ -81,12 +82,18 @@ function parseGeometrySplitItems(
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
     const body = await req.json();
 
-    const existing = await prisma.damage.findUnique({ where: { id } });
+    const existing = await prisma.damage.findUnique({ where: { id }, include: { facility: { select: { airportId: true } } } });
     if (!existing) {
       return NextResponse.json({ error: 'Data temuan tidak ditemukan' }, { status: 404 });
+    }
+    if (existing.facility && existing.facility.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Data temuan bukan milik airport aktif' }, { status: 404 });
     }
 
     // Jika opsi replaceAllInGroup diaktifkan (geometri di-edit ulang dan melintasi beberapa segmen STA)
@@ -161,7 +168,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
             changed.push(await tx.damage.update({ where: { id: oldRows[index].id }, data, include: { facility: true } }));
           } else {
             changed.push(await tx.damage.create({
-              data: { ...data, createdAt: current.createdAt },
+              data: { ...data, airportId: auth.activeAirportId, createdAt: current.createdAt },
               include: { facility: true },
             }));
           }
@@ -276,12 +283,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
     const url = new URL(req.url);
     const deleteGroup = url.searchParams.get('deleteGroup') === 'true';
 
     const existing = await prisma.damage.findUnique({ where: { id } });
-    if (!existing) {
+    if (!existing || existing.airportId !== auth.activeAirportId) {
       return NextResponse.json({ ok: true });
     }
 

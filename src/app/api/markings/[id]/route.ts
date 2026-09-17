@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
     const body = await req.json();
     const data: Record<string, unknown> = {};
@@ -19,6 +23,19 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.lng !== undefined) data.lng = body.lng === null ? null : Number(body.lng);
     if (body.localX !== undefined) data.localX = body.localX === null ? null : Number(body.localX);
     if (body.localY !== undefined) data.localY = body.localY === null ? null : Number(body.localY);
+    if (body.facilityId !== undefined && body.facilityId) {
+      const facility = await prisma.facility.findUnique({
+        where: { id: String(body.facilityId) },
+        select: { airportId: true },
+      });
+      if (!facility || facility.airportId !== auth.activeAirportId) {
+        return NextResponse.json({ error: 'Fasilitas tidak ditemukan atau bukan milik airport aktif' }, { status: 400 });
+      }
+    }
+    const existing = await prisma.markingFinding.findUnique({ where: { id }, select: { airportId: true } });
+    if (!existing || existing.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Temuan marka tidak ditemukan' }, { status: 404 });
+    }
     const marking = await prisma.markingFinding.update({ where: { id }, data, include: { facility: true } });
     return NextResponse.json(marking);
   } catch (error) {
@@ -27,9 +44,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
+    const existing = await prisma.markingFinding.findUnique({ where: { id }, select: { airportId: true } });
+    if (!existing || existing.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Temuan marka tidak ditemukan' }, { status: 404 });
+    }
     await prisma.markingFinding.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

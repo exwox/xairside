@@ -3,6 +3,7 @@ import { writeFile, mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { deleteDamagePhotoFile } from '@/lib/photo-file';
+import { requireAuthContext } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 
@@ -11,6 +12,9 @@ const MAX_FILE_BYTES = 12 * 1024 * 1024; // 12 MB aman untuk foto HP (dikompres 
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const form = await req.formData();
     const file = form.get('file');
     if (!(file instanceof File)) {
@@ -37,6 +41,9 @@ export async function POST(req: Request) {
 // Hapus file foto yang tidak lagi terpakai (misal photo diganti/dihapus pada form edit).
 export async function DELETE(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { searchParams } = new URL(req.url);
     const url = searchParams.get('url') || '';
     if (!url.startsWith('/uploads/damages/')) {

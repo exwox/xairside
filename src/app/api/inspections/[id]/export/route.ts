@@ -1,13 +1,22 @@
 import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/db';
 import { generateInspectionExcel } from '@/lib/excel-generator';
+import { requireAuthContext } from '@/lib/auth';
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
-    
+    const inspection = await prisma.inspection.findUnique({ where: { id }, select: { airportId: true } });
+    if (!inspection || inspection.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
+    }
+
     const excelBuffer = await generateInspectionExcel(id);
 
     const headers = new Headers();

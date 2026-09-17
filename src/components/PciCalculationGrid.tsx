@@ -20,6 +20,7 @@ interface PciCalculationGridProps {
   pciCorrection?: number;
   onPciCorrectionChange?: (value: number) => void;
   onPciAverageChange?: (average: number | null) => void;
+  airportName?: string;
 }
 
 const PAGE_SIZE = 30;
@@ -265,6 +266,7 @@ export default function PciCalculationGrid({
   pciCorrection = 100,
   onPciCorrectionChange,
   onPciAverageChange,
+  airportName,
 }: PciCalculationGridProps) {
   const [page, setPage] = useState(1);
   // Kolom digitasi DV 1–10 disembunyikan secara default agar tabel rapat; toggle di bar ringkasan menampilkannya.
@@ -341,6 +343,7 @@ export default function PciCalculationGrid({
         pciCorrection,
         pciAverage,
         generatedAt: new Date(),
+        airportName,
       });
       const stamp = new Date().toISOString().slice(0, 10);
       setPdfPreview({
@@ -350,7 +353,7 @@ export default function PciCalculationGrid({
     } catch {
       setPdfError('Pratinjau PDF gagal dibuat. Coba lagi.');
     }
-  }, [table, calculations, pciCorrection, pciAverage, pdfPreparing]);
+  }, [table, calculations, pciCorrection, pciAverage, pdfPreparing, airportName]);
   useEffect(() => {
     if (!pdfPreview) return;
     const previewButton = previewButtonRef.current;

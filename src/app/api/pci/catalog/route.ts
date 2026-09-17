@@ -1,14 +1,18 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 import { distressCatalog } from '@/lib/pci-data';
 import { damageCatalogConfigKey, effectiveSurfaceDamageCatalog, parseSurfaceDamageCatalog } from '@/lib/damage-catalog';
 import { pciRating } from '@/lib/pci';
 import type { DamageTypeEntry } from '@/types';
 
 // Katalog ASPHALT dan JPCP mengikuti masing-masing tabel kurva workbook airfield.
-export async function GET() {
-  const rows = await prisma.appConfig.findMany({
-    where: { key: { in: ['damageTypesConfig', damageCatalogConfigKey('ASPHALT'), damageCatalogConfigKey('JPCP')] } },
+export async function GET(req: Request) {
+  const auth = await requireAuthContext(req);
+  if ('response' in auth) return auth.response;
+
+  const rows = await prisma.airportConfig.findMany({
+    where: { airportId: auth.activeAirportId, key: { in: ['damageTypesConfig', damageCatalogConfigKey('ASPHALT'), damageCatalogConfigKey('JPCP')] } },
   });
   const values = Object.fromEntries(rows.map((row) => [row.key, row.value]));
   let legacy: DamageTypeEntry[] | null = null;

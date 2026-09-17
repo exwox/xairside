@@ -7,43 +7,95 @@ generator client {
   provider = "prisma-client-js"
 }
 
+model Airport {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  name      String
+  timezone  String   @default("Asia/Jakarta")
+  isActive  Boolean  @default(true)
+  refLat    Float    @default(0.9569)
+  refLng    Float    @default(104.5311)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users       User[]
+  facilities  Facility[]
+  damages     Damage[]
+  markings    MarkingFinding[]
+  mapLayers   MapLayer[]
+  pciSections PciSection[]
+  pciSurveys  PciSurvey[]
+  inspections Inspection[]
+  configs     AirportConfig[]
+}
+
 model User {
   id           String       @id @default(uuid())
   name         String
   email        String       @unique
   passwordHash String
-  role         String       // "ADMIN", "INSPECTOR", "SUPERVISOR"
+  role         String       // "SUPADMIN", "ADMIN", "USER", "VIEWER"
+  airportId    String?
+  airport      Airport?     @relation(fields: [airportId], references: [id], onDelete: SetNull)
+  isActive     Boolean      @default(true)
   inspections  Inspection[] @relation("InspectorRelation")
   approvals    Inspection[] @relation("SupervisorRelation")
+  sessions     Session[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
+
+  @@index([airportId])
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model AirportConfig {
+  id        String   @id @default(uuid())
+  airportId String
+  airport   Airport  @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  key       String
+  value     String
+  updatedAt DateTime @updatedAt
+
+  @@unique([airportId, key])
+  @@index([airportId])
 }
 
 model Inspection {
-  id            String             @id @default(uuid())
-  date          DateTime
-  status        String             // "DRAFT", "SUBMITTED", "APPROVED"
-  inspectorId   String
-  inspector     User               @relation("InspectorRelation", fields: [inspectorId], references: [id])
-  supervisorId  String?
-  supervisor    User?              @relation("SupervisorRelation", fields: [supervisorId], references: [id])
-  details       InspectionDetail[]
-  signature     String?            // Base64 signature image or path
-  // Matrix-style results aligned with the YIA worksheet format
-    matrixResults String?              // JSON string storing S/US values for runway/taxiway/apron matrix
-  // Bottom panel fields
-  rubberDepositRunway11 String?    // L / M / H
-  rubberDepositRunway29 String?    // L / M / H
-  notam          String?
-  fodCondition   String?            // SERVICEABLE / UNSERVICEABLE
+  id                    String             @id @default(uuid())
+  airportId             String
+  airport               Airport            @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  date                  DateTime
+  status                String             // "DRAFT", "SUBMITTED", "APPROVED"
+  inspectorId           String
+  inspector             User               @relation("InspectorRelation", fields: [inspectorId], references: [id])
+  supervisorId          String?
+  supervisor            User?              @relation("SupervisorRelation", fields: [supervisorId], references: [id])
+  details               InspectionDetail[]
+  signature             String?            // Base64 signature image or path
+  matrixResults         String?            // JSON string storing S/US values
+  rubberDepositRunway11 String?            // L / M / H
+  rubberDepositRunway29 String?            // L / M / H
+  notam                 String?
+  fodCondition          String?            // SERVICEABLE / UNSERVICEABLE
   standingWaterCondition String?
-  obstacleCondition String?
-  pavementCondition String?
-  // Pavement surface temperatures (°C)
+  obstacleCondition     String?
+  pavementCondition     String?
   pavementTempRunway11  String?
   pavementTempRunway29  String?
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+
+  @@index([airportId])
 }
 
 model InspectionItem {
@@ -80,85 +132,100 @@ model AppConfig {
 }
 
 model Facility {
-  id          String           @id @default(uuid())
-  code        String           @unique // "RWY-11/29", "TWY-A", "APRON-1"
-  name        String
-  type        String // RUNWAY | TAXIWAY | APRON
-  lengthM     Float?
-  widthM      Float?
-  areaSqm     Float?
-  surfaceType String? // ASPHALT | CONCRETE
-  pcn         String? // "PCN 60 F/B/W/T"
-  pcr         String? // "PCR 74 F/B/W/T" (ICAO Annex 14 Vol I ed. ke-18)
-  bearingDeg  Float? // azimuth utama fasilitas (untuk stationing runway)
-  centroidLat Float?
-  centroidLng Float?
-  polygonJson String? // JSON [{lat,lng},...] batas fasilitas
-  color       String?
-  status      String? // SERVICEABLE | CAUTION | UNSERVICEABLE
-  remarks     String?
-  stationDirection String?   @default("FORWARD") // FORWARD (Awal ke Akhir) | REVERSE (Akhir ke Awal)
-  stationIntervalM Float?    @default(50) // Jarak interval garis STA dalam meter (misal 10, 25, 50, 100)
-  locationMode     String?   @default("STA") // STA | SAM
-  sampleLengthM    Float?    @default(20) // Panjang per sampel dalam meter
-  sampleWidthM     Float?    @default(20) // Lebar per sampel dalam meter
-  blockLengthM     Float?    @default(5)  // Panjang per blok/slab concrete (m)
-  blockWidthM      Float?    @default(5)  // Lebar per blok/slab concrete (m)
-  slabDirection    String?   @default("FORWARD") // FORWARD (Slab A kiri atas) | REVERSE (Slab A kanan bawah)
-  pciCorrection    Float     @default(100)
-  damages     Damage[]
-  markings    MarkingFinding[]
-  pciSections PciSection[]
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
+  id               String           @id @default(uuid())
+  airportId        String
+  airport          Airport          @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  code             String           // "RWY-11/29", "TWY-A", "APRON-1"
+  name             String
+  type             String           // RUNWAY | TAXIWAY | APRON
+  lengthM          Float?
+  widthM           Float?
+  areaSqm          Float?
+  surfaceType      String?          // ASPHALT | CONCRETE
+  pcn              String?
+  pcr              String?
+  bearingDeg       Float?
+  centroidLat      Float?
+  centroidLng      Float?
+  polygonJson      String?
+  color            String?
+  status           String?          // SERVICEABLE | CAUTION | UNSERVICEABLE
+  remarks          String?
+  stationDirection String?          @default("FORWARD")
+  stationIntervalM Float?           @default(50)
+  locationMode     String?          @default("STA")
+  sampleLengthM    Float?           @default(20)
+  sampleWidthM     Float?           @default(20)
+  blockLengthM     Float?           @default(5)
+  blockWidthM      Float?           @default(5)
+  slabDirection    String?          @default("FORWARD")
+  pciCorrection    Float            @default(100)
+  damages          Damage[]
+  markings         MarkingFinding[]
+  pciSections      PciSection[]
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([airportId, code])
+  @@index([airportId])
 }
 
 model MapLayer {
   id           String   @id @default(uuid())
+  airportId    String
+  airport      Airport  @relation(fields: [airportId], references: [id], onDelete: Cascade)
   name         String
   fileName     String
-  refLat       Float // titik acuan DXF (biasanya ARP)
+  refLat       Float
   refLng       Float
-  rotationDeg  Float    @default(0) // rotasi drawing thd utara sejati (CW positif)
-  scale        Float    @default(1) // 1 satuan gambar = ? meter
-  entitiesJson String // hasil parse DXF (koordinat lokal meter)
+  rotationDeg  Float    @default(0)
+  scale        Float    @default(1)
+  entitiesJson String
   visible      Boolean  @default(true)
   createdAt    DateTime @default(now())
+
+  @@index([airportId])
 }
 
 model Damage {
-  id         String    @id @default(uuid())
-  groupId    String?   // ID kelompok untuk temuan yang terbagi/dipecah otomatis per segmen STA
-  facilityId String?
-  facility   Facility? @relation(fields: [facilityId], references: [id])
-  station    String? // "RWY 11 + 1250", "TWY A3", ...
-  sampleCode String? // "SAM-1", "SAM-2", ... jika mode SAM
-  type       String // jenis kerusakan (lihat src/lib/constants.ts)
-  severity   String // L | M | H
-  lat        Float // koordinat Google (WGS84)
-  lng        Float
-  localX     Float // koordinat aerodrome: East dari ARP (m)
-  localY     Float // koordinat aerodrome: North dari ARP (m)
-  rectJson   String? // JSON titik geometri asal: poligon/slab (>=3), garis (>=2), atau null untuk titik
-  geometryType String @default("POLYGON") // POLYGON | LINE | POINT | SLAB
-  lengthM    Float?
-  widthM     Float?
-  areaSqm    Float     @default(0)
-  count      Int? // jumlah kejadian/slab; tidak diturunkan dari luas
-  photoUrl   String?
-  remarks    String?
-  status     String    @default("OPEN") // OPEN | IN_PROGRESS | CLOSED
-  reportedBy String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id           String    @id @default(uuid())
+  airportId    String
+  airport      Airport   @relation(fields: [airportId], references: [id], onDelete: Cascade)
+  groupId      String?
+  facilityId   String?
+  facility     Facility? @relation(fields: [facilityId], references: [id])
+  station      String?
+  sampleCode   String?
+  type         String
+  severity     String
+  lat          Float
+  lng          Float
+  localX       Float
+  localY       Float
+  rectJson     String?
+  geometryType String    @default("POLYGON")
+  lengthM      Float?
+  widthM       Float?
+  areaSqm      Float     @default(0)
+  count        Int?
+  photoUrl     String?
+  remarks      String?
+  status       String    @default("OPEN")
+  reportedBy   String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([airportId])
 }
 
 model MarkingFinding {
   id          String    @id @default(uuid())
+  airportId   String
+  airport     Airport   @relation(fields: [airportId], references: [id], onDelete: Cascade)
   facilityId  String?
   facility    Facility? @relation(fields: [facilityId], references: [id])
-  markingType String // CENTERLINE, THRESHOLD, TDZ, ...
-  condition   String // BAIK | PERLU_PERBAIKAN | USANG
+  markingType String
+  condition   String
   station     String?
   lat         Float?
   lng         Float?
@@ -167,35 +234,45 @@ model MarkingFinding {
   areaSqm     Float?
   remarks     String?
   photoUrl    String?
-  status      String    @default("OPEN") // OPEN | CLOSED
+  status      String    @default("OPEN")
   reportedBy  String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  @@index([airportId])
 }
 
 model PciSection {
   id             String      @id @default(uuid())
+  airportId      String
+  airport        Airport     @relation(fields: [airportId], references: [id], onDelete: Cascade)
   facilityId     String?
   facility       Facility?   @relation(fields: [facilityId], references: [id])
-  name           String // "RWY 11/29 - Seksi 1"
-  surfaceType    String // ASPHALT | JPCP
+  name           String
+  surfaceType    String
   totalAreaSqm   Float
-  sampleUnitArea Float       @default(225) // 225 m2 (AS) / 20 slab (JPCC ~ 232 m2)
+  sampleUnitArea Float       @default(225)
   lastPci        Float?
   lastSurveyAt   DateTime?
   surveys        PciSurvey[]
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
+
+  @@index([airportId])
 }
 
 model PciSurvey {
   id            String     @id @default(uuid())
+  airportId     String
+  airport       Airport    @relation(fields: [airportId], references: [id], onDelete: Cascade)
   sectionId     String
   section       PciSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
   inspectorName String?
   surveyDate    DateTime
-  pci           Float // PCI section (rata-rata tertimbang sample unit)
-  rating        String // EXCELLENT ... FAILED
-  detailsJson   String // [{no, areaSqm, distresses, dv, totalDv, maxCdv, pci}]
+  pci           Float
+  rating        String
+  detailsJson   String
   createdAt     DateTime   @default(now())
+
+  @@index([airportId])
 }

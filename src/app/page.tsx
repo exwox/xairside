@@ -1,11 +1,11 @@
 import AppShell from '@/components/AppShell';
 import DashboardView from '@/components/DashboardView';
+import PageAccessGate from '@/components/PageAccessGate';
 
 export default function Home() {
   return (
-    <AppShell>
+    <PageAccessGate page="dashboard"><AppShell>
       <DashboardView />
-    </AppShell>
+    </AppShell></PageAccessGate>
   );
 }
-

@@ -248,6 +248,7 @@ export interface PciPdfOptions {
   pciCorrection: number;
   pciAverage?: number | null;
   generatedAt?: Date;
+  airportName?: string;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -313,7 +314,7 @@ function drawStatCard(
 /*  Page 1 — header, facility info, summary, chart                            */
 /* -------------------------------------------------------------------------- */
 
-function drawPageHeader(doc: jsPDF, table: PciFacilityTable): void {
+function drawPageHeader(doc: jsPDF, table: PciFacilityTable, airportName?: string): void {
   setFill(doc, C.navy);
   doc.rect(0, 0, A4_W, 26, 'F');
   setFill(doc, C.sky);
@@ -322,7 +323,7 @@ function drawPageHeader(doc: jsPDF, table: PciFacilityTable): void {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
   setText(doc, C.skyLight);
-  doc.text('X-AIRSIDE MONITORING', MARGIN, 9);
+  doc.text(`X-AIRSIDE MONITORING${airportName ? ` - ${airportName}` : ''}`, MARGIN, 9);
 
   doc.setFontSize(15.5);
   setText(doc, C.white);
@@ -698,12 +699,12 @@ function drawDetailTable(
 /* -------------------------------------------------------------------------- */
 
 export function generatePciReportPdf(options: PciPdfOptions): jsPDF {
-  const { table, calculations, pciCorrection, generatedAt = new Date() } = options;
+  const { table, calculations, pciCorrection, generatedAt = new Date(), airportName } = options;
   const average = computeAverage(calculations, options.pciAverage);
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
 
   // Page 1 — summary & chart
-  drawPageHeader(doc, table);
+  drawPageHeader(doc, table, airportName);
   drawFacilityInfo(doc, table, generatedAt);
   drawSummary(doc, table, calculations, pciCorrection, average, 62);
   const afterChart = drawChartSection(doc, table, calculations, average, 92);

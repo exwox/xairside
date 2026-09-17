@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
     const body = await req.json();
     const data: Record<string, unknown> = {};
@@ -12,6 +16,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (body.refLng !== undefined) data.refLng = Number(body.refLng);
     if (body.rotationDeg !== undefined) data.rotationDeg = Number(body.rotationDeg);
     if (body.scale !== undefined) data.scale = Number(body.scale) || 1;
+    const existing = await prisma.mapLayer.findUnique({ where: { id }, select: { airportId: true } });
+    if (!existing || existing.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Layer tidak ditemukan' }, { status: 404 });
+    }
     const layer = await prisma.mapLayer.update({ where: { id }, data });
     return NextResponse.json(layer);
   } catch (error) {
@@ -20,9 +28,16 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
+    const existing = await prisma.mapLayer.findUnique({ where: { id }, select: { airportId: true } });
+    if (!existing || existing.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Layer tidak ditemukan' }, { status: 404 });
+    }
     await prisma.mapLayer.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

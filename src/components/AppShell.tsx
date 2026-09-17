@@ -1,20 +1,59 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Plane, LayoutDashboard, ClipboardCheck, AlertTriangle, PenTool, BarChart3, Settings } from 'lucide-react';
+import { pageKeyForPath, type PageKey } from '@/lib/page-access';
+
+type Role = 'SUPADMIN' | 'ADMIN' | 'USER' | 'VIEWER';
+type AuthState = {
+  user: { name: string; role: Role };
+  activeAirport: { id: string; name: string };
+  availableAirports: { id: string; name: string; code: string }[];
+  pageAccess: PageKey[];
+};
 
 const MENUS = [
-  { href: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/inspeksi', label: 'Inspeksi', icon: ClipboardCheck },
-  { href: '/kerusakan', label: 'Kerusakan', icon: AlertTriangle },
-  { href: '/marka', label: 'Marka', icon: PenTool },
-  { href: '/pci', label: 'PCI', icon: BarChart3 },
-  { href: '/admin', label: 'Admin', icon: Settings },
+  { href: '/', label: 'Dashboard', icon: LayoutDashboard, page: 'dashboard' },
+  { href: '/inspeksi', label: 'Inspeksi', icon: ClipboardCheck, page: 'inspections' },
+  { href: '/kerusakan', label: 'Kerusakan', icon: AlertTriangle, page: 'damages' },
+  { href: '/marka', label: 'Marka', icon: PenTool, page: 'markings' },
+  { href: '/pci', label: 'PCI', icon: BarChart3, page: 'pci' },
+  { href: '/admin', label: 'Admin', icon: Settings, page: 'admin' },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [auth, setAuth] = useState<AuthState | null>(null);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/auth/me', { cache: 'no-store' }).then(async (response) => {
+      if (!response.ok) throw new Error('Sesi gagal diperiksa');
+      return response.json();
+    }).then((data: AuthState & { user?: AuthState['user'] }) => {
+      if (!active) return;
+      if (!data.user) router.replace('/login');
+      else setAuth(data);
+    }).catch(() => { if (active) router.replace('/login'); });
+    return () => { active = false; };
+  }, [router]);
+
+  if (!auth) return <div className="flex min-h-screen items-center justify-center text-slate-600">Memeriksa sesi...</div>;
+  const page = pageKeyForPath(pathname);
+  const allowed = page !== null && auth.pageAccess.includes(page);
+  if (!allowed) return <div className="p-8 text-red-700">Anda tidak memiliki akses ke halaman ini. <Link href="/">Kembali ke Dashboard</Link></div>;
+
+  async function changeAirport(id: string) {
+    const response = await fetch('/api/auth/select-airport', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ airportId: id }) });
+    if (response.ok) window.location.reload();
+  }
+  async function logout() {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    router.replace('/login');
+    router.refresh();
+  }
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-[1000]">
@@ -26,9 +65,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
           <nav className="flex items-center gap-1 overflow-x-auto">
-            {MENUS.map((m) => {
+            {MENUS.filter((m) => auth.pageAccess.includes(m.page as PageKey)).map((m) => {
               const Icon = m.icon;
-              const active = pathname === m.href || (m.href !== '/' && pathname.startsWith(m.href));
+              const active = pathname === m.href || (m.href !== '/' && pathname.startsWith(`${m.href}/`));
               return (
                 <Link
                   key={m.href}
@@ -44,7 +83,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-xs text-slate-300">
-            <span className="hidden sm:inline">Monitoring Fasilitas Airside</span>
+            <span>{auth.user.name} · {auth.user.role}</span>
+            {auth.user.role === 'SUPADMIN' ? <select aria-label="Bandara aktif" value={auth.activeAirport.id} onChange={(e) => changeAirport(e.target.value)} className="rounded bg-slate-700 px-2 py-1 text-white">{auth.availableAirports.map((airport) => <option key={airport.id} value={airport.id}>{airport.code}</option>)}</select> : <span>{auth.activeAirport.name}</span>}
+            <button onClick={logout} className="rounded border border-slate-500 px-2 py-1 hover:bg-slate-700">Keluar</button>
           </div>
         </div>
       </header>

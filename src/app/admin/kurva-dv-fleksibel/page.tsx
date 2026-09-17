@@ -1,5 +1,6 @@
 import DvCurveEditor from '@/components/DvCurveEditor';
+import PageAccessGate from '@/components/PageAccessGate';
 
 export default function FlexibleDvCurvePage() {
-  return <DvCurveEditor surfaceType="ASPHALT" />;
+  return <PageAccessGate page="dvFlexible"><DvCurveEditor surfaceType="ASPHALT" /></PageAccessGate>;
 }

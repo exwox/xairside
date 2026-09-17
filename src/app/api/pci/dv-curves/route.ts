@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
+import { isPageAllowed } from '@/lib/page-access';
+import { getRolePageAccess } from '@/lib/page-access-server';
 import { compactDvCurveSet, dvConfigKey, mergedDvCurveSet, parseDvCurveSet, validateDvCurveSet } from '@/lib/dv';
 import {
   damageCatalogConfigKey,
@@ -26,15 +29,18 @@ function parseLegacyConfig(raw: string | null | undefined): DamageTypeEntry[] | 
 }
 
 export async function GET(req: Request) {
+  const auth = await requireAuthContext(req);
+  if ('response' in auth) return auth.response;
+
   const surfaceType = new URL(req.url).searchParams.get('surfaceType');
   if (!isSurfaceType(surfaceType)) {
     return NextResponse.json({ error: 'surfaceType harus ASPHALT atau JPCP.' }, { status: 400 });
   }
   try {
     const [row, catalogRow, legacyRow] = await Promise.all([
-      prisma.appConfig.findUnique({ where: { key: dvConfigKey(surfaceType) } }),
-      prisma.appConfig.findUnique({ where: { key: damageCatalogConfigKey(surfaceType) } }),
-      prisma.appConfig.findUnique({ where: { key: 'damageTypesConfig' } }),
+      prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: dvConfigKey(surfaceType) } } }),
+      prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: damageCatalogConfigKey(surfaceType) } } }),
+      prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: 'damageTypesConfig' } } }),
     ]);
     const stored = parseDvCurveSet(row?.value, surfaceType);
     if (row && !stored) {
@@ -60,9 +66,21 @@ export async function GET(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
+    // Hanya ADMIN/SUPADMIN yang dapat mengubah kurva DV & katalog
+    if (auth.user.role !== 'ADMIN' && auth.user.role !== 'SUPADMIN') {
+      return NextResponse.json({ error: 'Anda tidak memiliki hak akses untuk mengubah kurva DV' }, { status: 403 });
+    }
+
     const body = await req.json() as { surfaceType?: unknown; curves?: unknown; catalog?: unknown };
     if (!isSurfaceType(body.surfaceType)) {
       return NextResponse.json({ error: 'surfaceType harus ASPHALT atau JPCP.' }, { status: 400 });
+    }
+    const curvePage = body.surfaceType === 'ASPHALT' ? 'dvFlexible' : 'dvRigid';
+    if (!isPageAllowed(await getRolePageAccess(), auth.user.role, curvePage)) {
+      return NextResponse.json({ error: 'Akses kurva DV ditolak' }, { status: 403 });
     }
     const validation = validateDvCurveSet(body.curves, body.surfaceType);
     if (!validation.ok) {
@@ -76,8 +94,8 @@ export async function PUT(req: Request) {
       const incoming = validateSurfaceDamageCatalog(body.catalog, surface);
       if (!incoming.ok) return NextResponse.json({ error: incoming.error }, { status: 400 });
       const [catalogRow, legacyRow] = await Promise.all([
-        prisma.appConfig.findUnique({ where: { key: damageCatalogConfigKey(surface) } }),
-        prisma.appConfig.findUnique({ where: { key: 'damageTypesConfig' } }),
+        prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: damageCatalogConfigKey(surface) } } }),
+        prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: 'damageTypesConfig' } } }),
       ]);
       const storedCatalog = parseSurfaceDamageCatalog(catalogRow?.value, surface);
       if (catalogRow && !storedCatalog) {
@@ -89,15 +107,15 @@ export async function PUT(req: Request) {
       if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: 400 });
       catalog = checked.catalog;
     }
-    const operations = [prisma.appConfig.upsert({
-      where: { key: dvConfigKey(surface) },
+    const operations = [prisma.airportConfig.upsert({
+      where: { airportId_key: { airportId: auth.activeAirportId, key: dvConfigKey(surface) } },
       update: { value: JSON.stringify(compact) },
-      create: { key: dvConfigKey(surface), value: JSON.stringify(compact) },
+      create: { airportId: auth.activeAirportId, key: dvConfigKey(surface), value: JSON.stringify(compact) },
     })];
-    if (catalog) operations.push(prisma.appConfig.upsert({
-      where: { key: damageCatalogConfigKey(surface) },
+    if (catalog) operations.push(prisma.airportConfig.upsert({
+      where: { airportId_key: { airportId: auth.activeAirportId, key: damageCatalogConfigKey(surface) } },
       update: { value: JSON.stringify(catalog) },
-      create: { key: damageCatalogConfigKey(surface), value: JSON.stringify(catalog) },
+      create: { airportId: auth.activeAirportId, key: damageCatalogConfigKey(surface), value: JSON.stringify(catalog) },
     }));
     const [row] = await prisma.$transaction(operations);
     return NextResponse.json({

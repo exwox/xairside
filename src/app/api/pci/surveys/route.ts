@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 import { computeSampleUnitPci, computeSectionPci, pciRating, PciInputError, type DistressInput } from '@/lib/pci';
 import { cdvConfigKey, defaultCdvCurveSet, parseCdvCurveSet } from '@/lib/cdv';
 import { dvConfigKey, parseDvCurveSet } from '@/lib/dv';
@@ -14,6 +15,9 @@ interface UnitInput {
 // Simpan survey PCI: seluruh perhitungan dan kurva admin dijalankan di server.
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const body = await req.json();
     const sectionId = body.sectionId as string;
     const units = (body.units ?? []) as UnitInput[];
@@ -21,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'sectionId dan minimal 1 sample unit wajib' }, { status: 400 });
     }
     const section = await prisma.pciSection.findUnique({ where: { id: sectionId } });
-    if (!section) {
+    if (!section || section.airportId !== auth.activeAirportId) {
       return NextResponse.json({ error: 'Section tidak ditemukan' }, { status: 404 });
     }
 
@@ -33,12 +37,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Jumlah slab sampel wajib untuk kerusakan rigit yang dihitung per slab.' }, { status: 400 });
       }
     }
-    const curveConfig = await prisma.appConfig.findUnique({
-      where: { key: cdvConfigKey(surfaceType) },
+    const curveConfig = await prisma.airportConfig.findUnique({
+      where: { airportId_key: { airportId: auth.activeAirportId, key: cdvConfigKey(surfaceType) } },
     });
     const cdvCurves = parseCdvCurveSet(curveConfig?.value, surfaceType)
       ?? defaultCdvCurveSet(surfaceType);
-    const dvConfig = await prisma.appConfig.findUnique({ where: { key: dvConfigKey(surfaceType) } });
+    const dvConfig = await prisma.airportConfig.findUnique({ where: { airportId_key: { airportId: auth.activeAirportId, key: dvConfigKey(surfaceType) } } });
     const dvCurves = parseDvCurveSet(dvConfig?.value, surfaceType);
     if (dvConfig && !dvCurves) {
       return NextResponse.json({ error: 'Kurva DV tersimpan tidak valid. Periksa konfigurasi Admin.' }, { status: 500 });
@@ -75,6 +79,7 @@ export async function POST(req: Request) {
 
     const survey = await prisma.pciSurvey.create({
       data: {
+        airportId: auth.activeAirportId,
         sectionId,
         inspectorName: body.inspectorName ?? null,
         surveyDate,

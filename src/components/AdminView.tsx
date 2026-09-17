@@ -6,7 +6,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Save, Plus, Trash2, RotateCcw, RotateCw, MapPin, Edit3, ChevronDown, ChevronUp, AlertTriangle, Compass, LineChart } from 'lucide-react';
+import { Save, Plus, Trash2, RotateCcw, RotateCw, MapPin, Edit3, ChevronDown, ChevronUp, AlertTriangle, Compass, LineChart, Users } from 'lucide-react';
+import type { PageKey } from '@/lib/page-access';
 import type { Facility } from '@/types';
 import { FACILITY_TYPE_LABEL, FACILITY_TYPE_COLORS } from '@/lib/constants';
 import { rotateFacilityPolygonClockwise, closestEquivalentBearing, computePolygonMetrics, resizePolygonToDimensions, generateFacilitySampleGrids, type FacilitySampleGrid } from '@/lib/geo';
@@ -17,6 +18,9 @@ const AdminMap = nextDynamic(() => import('./AdminMap'), {
 });
 
 export default function AdminView() {
+  const [currentRole, setCurrentRole] = useState<'SUPADMIN' | 'ADMIN' | null>(null);
+  const [pageAccess, setPageAccess] = useState<PageKey[]>([]);
+  const [showPciMenu, setShowPciMenu] = useState(false);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
@@ -42,29 +46,47 @@ export default function AdminView() {
     mapRotationDeg: 0,
     stationIntervalM: 50,
   });
+  const [configReady, setConfigReady] = useState(false);
   const [showGlobalSettings, setShowGlobalSettings] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
 
   const selected = useMemo(() => facilities.find((f) => f.id === selectedId), [facilities, selectedId]);
 
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((data) => {
+        setCurrentRole(data.user?.role === 'SUPADMIN' ? 'SUPADMIN' : data.user?.role === 'ADMIN' ? 'ADMIN' : null);
+        setPageAccess(Array.isArray(data.pageAccess) ? data.pageAccess : []);
+      })
+      .catch(() => {});
+  }, []);
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const [fRes, cRes] = await Promise.all([
-        fetch('/api/facilities'),
-        fetch('/api/config'),
+        fetch('/api/facilities', { cache: 'no-store' }),
+        fetch('/api/config', { cache: 'no-store' }),
       ]);
       if (fRes.ok) setFacilities(await fRes.json());
-      if (cRes.ok) {
-        const cfg = await cRes.json();
-        setConfig({
-          arpLat: cfg.arpLat ?? 0.9569,
-          arpLng: cfg.arpLng ?? 104.5311,
-          airportName: cfg.airportName ?? 'Airside',
-          mapRotationDeg: cfg.mapRotationDeg ?? 0,
-          stationIntervalM: cfg.stationIntervalM ?? 50,
-        });
+      if (!cRes.ok) throw new Error('Gagal memuat konfigurasi bandara aktif. Silakan muat ulang halaman.');
+      const cfg = await cRes.json();
+      if (typeof cfg.arpLat !== 'number' || typeof cfg.arpLng !== 'number'
+        || !Number.isFinite(cfg.arpLat) || !Number.isFinite(cfg.arpLng)
+        || Math.abs(cfg.arpLat) > 90 || Math.abs(cfg.arpLng) > 180) {
+        throw new Error('Koordinat ARP bandara aktif tidak valid. Periksa pengaturan Bandara.');
       }
+      setConfig({
+        arpLat: cfg.arpLat,
+        arpLng: cfg.arpLng,
+        airportName: cfg.airportName ?? 'Airside',
+        mapRotationDeg: cfg.mapRotationDeg ?? 0,
+        stationIntervalM: cfg.stationIntervalM ?? 50,
+      });
+      setConfigReady(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal memuat data bandara aktif.');
     } finally {
       setLoading(false);
     }
@@ -294,8 +316,8 @@ export default function AdminView() {
   };
 
   const generateDefaultBoxVertices = useCallback(() => {
-    const centerLat = config.arpLat || 0.9569;
-    const centerLng = config.arpLng || 104.5311;
+    const centerLat = config.arpLat;
+    const centerLng = config.arpLng;
     const dLat = 0.00015;
     const dLng = 0.0004;
     const defaultVerts = [
@@ -311,8 +333,8 @@ export default function AdminView() {
   const createFacility = async () => {
     setError('');
     try {
-      const centerLat = config.arpLat || 0.9569;
-      const centerLng = config.arpLng || 104.5311;
+      const centerLat = config.arpLat;
+      const centerLng = config.arpLng;
       const dLat = 0.00015;
       const dLng = 0.0004;
       const defaultVerts = [
@@ -398,38 +420,39 @@ export default function AdminView() {
             {config.mapRotationDeg}°
           </span>
         </div>
-        <div className="border-b border-slate-200 bg-slate-50 p-2.5">
-          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
-            <LineChart className="h-3.5 w-3.5" /> Perhitungan PCI
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            <Link
-              href="/admin/kurva-dv-fleksibel"
-              className="rounded-lg border border-sky-200 bg-white px-2 py-2 text-center text-[11px] font-bold leading-tight text-sky-800 shadow-sm hover:bg-sky-50"
-            >
-              Kode/Nama &amp; DV<br />Flexible
-            </Link>
-            <Link
-              href="/admin/kurva-dv-rigit"
-              className="rounded-lg border border-amber-200 bg-white px-2 py-2 text-center text-[11px] font-bold leading-tight text-amber-800 shadow-sm hover:bg-amber-50"
-            >
-              Kode/Nama &amp; DV<br />Rigit
-            </Link>
-            <Link
-              href="/admin/kurva-cdv-fleksibel"
-              className="rounded-lg border border-sky-200 bg-white px-2 py-2 text-center text-[11px] font-bold leading-tight text-sky-800 shadow-sm hover:bg-sky-50"
-            >
-              Kurva CDV<br />Fleksibel
-            </Link>
-            <Link
-              href="/admin/kurva-cdv-rigit"
-              className="rounded-lg border border-amber-200 bg-white px-2 py-2 text-center text-[11px] font-bold leading-tight text-amber-800 shadow-sm hover:bg-amber-50"
-            >
-              Kurva CDV<br />Rigit
-            </Link>
-          </div>
-        </div>
         <div className="flex-1 overflow-y-auto">
+          {currentRole && (pageAccess.includes('users') || pageAccess.includes('airports')
+            || ['dvFlexible', 'dvRigid', 'cdvFlexible', 'cdvRigid'].some((page) => pageAccess.includes(page as PageKey))) && <div className="border-b border-slate-200 bg-slate-50 p-2.5">
+            <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
+              <Users className="h-3.5 w-3.5" /> {currentRole === 'SUPADMIN' ? 'Menu Superadmin' : 'Menu Admin'}
+            </p>
+            <nav aria-label={currentRole === 'SUPADMIN' ? 'Menu Superadmin' : 'Menu Admin'} className="space-y-1.5">
+              {pageAccess.includes('users') && <Link href="/admin/users" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50">
+                <Users className="h-4 w-4 text-sky-700" /> Akun
+              </Link>}
+              {pageAccess.includes('airports') && <Link href="/admin/airports" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50">
+                <MapPin className="h-4 w-4 text-sky-700" /> Bandara
+              </Link>}
+              {(['dvFlexible', 'dvRigid', 'cdvFlexible', 'cdvRigid'] as PageKey[]).some((page) => pageAccess.includes(page)) && <>
+                <button
+                  type="button"
+                  aria-expanded={showPciMenu}
+                  aria-controls="superadmin-pci-links"
+                  onClick={() => setShowPciMenu((open) => !open)}
+                  className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-xs font-semibold text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50"
+                >
+                  <LineChart className="h-4 w-4 text-sky-700" /> Perhitungan PCI
+                  {showPciMenu ? <ChevronUp className="ml-auto h-4 w-4" /> : <ChevronDown className="ml-auto h-4 w-4" />}
+                </button>
+                <div id="superadmin-pci-links" hidden={!showPciMenu} className="ml-3 space-y-1 border-l-2 border-sky-200 pl-3">
+                  {pageAccess.includes('dvFlexible') && <Link href="/admin/kurva-dv-fleksibel" className="block rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-sky-100">Kurva DV Fleksibel</Link>}
+                  {pageAccess.includes('dvRigid') && <Link href="/admin/kurva-dv-rigit" className="block rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-sky-100">Kurva DV Rigit</Link>}
+                  {pageAccess.includes('cdvFlexible') && <Link href="/admin/kurva-cdv-fleksibel" className="block rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-sky-100">Kurva CDV Fleksibel</Link>}
+                  {pageAccess.includes('cdvRigid') && <Link href="/admin/kurva-cdv-rigit" className="block rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-sky-100">Kurva CDV Rigit</Link>}
+                </div>
+              </>}
+            </nav>
+          </div>}
           {facilities.length === 0 && <p className="p-3 text-xs text-gray-400">Belum ada fasilitas. Klik + untuk menambah.</p>}
           {facilities.map((f) => (
             <button
@@ -450,7 +473,9 @@ export default function AdminView() {
 
       {/* Panel tengah — peta edit polygon */}
       <div className="flex-1 relative">
-        <AdminMap
+        {configReady ? <AdminMap
+          arpLat={config.arpLat}
+          arpLng={config.arpLng}
           facilities={facilities}
           selectedId={selectedId}
           vertices={vertices}
@@ -468,7 +493,11 @@ export default function AdminView() {
           bearingDeg={meta.bearingDeg ? parseFloat(meta.bearingDeg) : undefined}
           onVerticesChange={handleVerticesChange}
           onSelectFacility={(id) => setSelectedId(id)}
-        />
+        /> : (
+          <div className="flex h-full items-center justify-center bg-slate-900 px-6 text-center text-sm text-slate-300" role="status">
+            {loading ? 'Memuat peta sesuai ARP bandara aktif...' : 'Peta belum tersedia. Konfigurasi ARP bandara aktif gagal dimuat.'}
+          </div>
+        )}
         {selected && (
           <div className="absolute top-3 left-3 bg-white/95 backdrop-blur rounded-lg shadow-lg px-3 py-2 text-xs max-w-xs">
             <p className="font-bold text-gray-800">{selected.code} — {selected.name}</p>

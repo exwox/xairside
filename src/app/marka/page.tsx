@@ -1,10 +1,11 @@
 import AppShell from '@/components/AppShell';
 import MarkaView from '@/components/MarkaView';
+import PageAccessGate from '@/components/PageAccessGate';
 
 export default function MarkaPage() {
   return (
-    <AppShell>
+    <PageAccessGate page="markings"><AppShell>
       <MarkaView />
-    </AppShell>
+    </AppShell></PageAccessGate>
   );
 }

@@ -1,12 +1,17 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const inspections = await prisma.inspection.findMany({
+      where: { airportId: auth.activeAirportId },
       include: {
-        inspector: true,
-        supervisor: true,
+        inspector: { select: { id: true, name: true } },
+        supervisor: { select: { id: true, name: true } },
       },
       orderBy: { date: 'desc' },
     });
@@ -19,17 +24,14 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const body = await req.json();
     const { details, matrixResults, rubberDepositRunway11, rubberDepositRunway29, notam, fodCondition, standingWaterCondition, obstacleCondition, pavementCondition, pavementTempRunway11, pavementTempRunway29, date } = body;
 
-    // Fetch the default inspector seeded in DB
-    const inspector = await prisma.user.findFirst({
-      where: { role: 'INSPECTOR' },
-    });
-
-    if (!inspector) {
-      return NextResponse.json({ error: 'Inspector account not found' }, { status: 404 });
-    }
+    // Inspector = user yang sedang login (menggantikan akun seed INSPECTOR)
+    const inspector = auth.user;
 
     // details can come from matrixResults (preferred) or from the legacy details array
     let detailData: any[] = [];
@@ -68,6 +70,7 @@ export async function POST(req: Request) {
     // Create the inspection record and details
     const inspection = await prisma.inspection.create({
       data: {
+        airportId: auth.activeAirportId,
         date: date ? new Date(date) : new Date(),
         status: 'SUBMITTED', // Set directly to SUBMITTED for review
         inspectorId: inspector.id,

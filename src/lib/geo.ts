@@ -318,12 +318,13 @@ export function pointFromPoint(
   };
 }
 
-// Rectangle axis-aligned dari 2 titik sudut (drag peta) -> 4 sudut + metrik lokal
+// Rectangle sejajar sumbu layar dari 2 titik sudut -> 4 sudut + metrik lokal.
 export function rectFromCorners(
   a: LatLng,
   b: LatLng,
   arpLat: number,
-  arpLng: number
+  arpLng: number,
+  mapRotationDeg = 0
 ): {
   corners: LatLng[];
   center: LatLng;
@@ -334,20 +335,28 @@ export function rectFromCorners(
 } {
   const la = latLngToLocal(a.lat, a.lng, arpLat, arpLng);
   const lb = latLngToLocal(b.lat, b.lng, arpLat, arpLng);
-  const minX = Math.min(la.x, lb.x);
-  const maxX = Math.max(la.x, lb.x);
-  const minY = Math.min(la.y, lb.y);
-  const maxY = Math.max(la.y, lb.y);
+  const { horizontal, vertical } = screenAxesInLocalCoordinates(mapRotationDeg);
+  const project = (p: LocalPoint) => ({
+    x: p.x * horizontal.x + p.y * horizontal.y,
+    y: p.x * vertical.x + p.y * vertical.y,
+  });
+  const pa = project(la);
+  const pb = project(lb);
+  const minX = Math.min(pa.x, pb.x);
+  const maxX = Math.max(pa.x, pb.x);
+  const minY = Math.min(pa.y, pb.y);
+  const maxY = Math.max(pa.y, pb.y);
 
   const lengthM = maxY - minY;
   const widthM = maxX - minX;
   const centerLocal: LocalPoint = { x: (la.x + lb.x) / 2, y: (la.y + lb.y) / 2 };
   const corners: LatLng[] = [
-    localToLatLng(minX, minY, arpLat, arpLng),
-    localToLatLng(maxX, minY, arpLat, arpLng),
-    localToLatLng(maxX, maxY, arpLat, arpLng),
-    localToLatLng(minX, maxY, arpLat, arpLng),
-  ];
+    [minX, minY], [maxX, minY], [maxX, maxY], [minX, maxY],
+  ].map(([x, y]) => localToLatLng(
+    x * horizontal.x + y * vertical.x,
+    x * horizontal.y + y * vertical.y,
+    arpLat, arpLng,
+  ));
   const center = localToLatLng(centerLocal.x, centerLocal.y, arpLat, arpLng);
   return { corners, center, centerLocal, lengthM, widthM, areaSqm: lengthM * widthM };
 }
@@ -438,7 +447,8 @@ export function rectFromCenterDimensions(
 export function polyFromPoints(
   points: LatLng[],
   arpLat: number,
-  arpLng: number
+  arpLng: number,
+  mapRotationDeg = 0
 ): {
   corners: LatLng[];
   center: LatLng;
@@ -448,7 +458,7 @@ export function polyFromPoints(
   areaSqm: number;
 } {
   if (points.length === 2) {
-    return rectFromCorners(points[0], points[1], arpLat, arpLng);
+    return rectFromCorners(points[0], points[1], arpLat, arpLng, mapRotationDeg);
   }
   const locals = toLocalPoly(points, arpLat, arpLng);
   const areaSqm = polygonAreaSqm(locals);

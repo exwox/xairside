@@ -1,9 +1,14 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const markings = await prisma.markingFinding.findMany({
+      where: { airportId: auth.activeAirportId },
       include: { facility: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -16,12 +21,25 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const body = await req.json();
     if (!body.markingType || !body.condition) {
       return NextResponse.json({ error: 'markingType dan condition wajib diisi' }, { status: 400 });
     }
+    if (body.facilityId) {
+      const facility = await prisma.facility.findUnique({
+        where: { id: body.facilityId },
+        select: { airportId: true },
+      });
+      if (!facility || facility.airportId !== auth.activeAirportId) {
+        return NextResponse.json({ error: 'Fasilitas tidak ditemukan atau bukan milik airport aktif' }, { status: 400 });
+      }
+    }
     const marking = await prisma.markingFinding.create({
       data: {
+        airportId: auth.activeAirportId,
         facilityId: body.facilityId || null,
         markingType: body.markingType,
         condition: body.condition,

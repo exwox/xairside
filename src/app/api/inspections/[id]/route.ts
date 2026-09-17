@@ -1,17 +1,21 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 
 export async function GET(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const { id } = await params;
     const inspection = await prisma.inspection.findUnique({
       where: { id },
       include: {
-        inspector: true,
-        supervisor: true,
+        inspector: { select: { id: true, name: true } },
+        supervisor: { select: { id: true, name: true } },
         details: {
           include: {
             item: true,
@@ -25,7 +29,7 @@ export async function GET(
       },
     });
 
-        if (!inspection) {
+        if (!inspection || inspection.airportId !== auth.activeAirportId) {
       return NextResponse.json({ error: 'Inspection not found' }, { status: 404 });
     }
 

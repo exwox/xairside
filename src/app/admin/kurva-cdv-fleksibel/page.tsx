@@ -1,10 +1,11 @@
 import AppShell from '@/components/AppShell';
 import CdvCurveEditor from '@/components/CdvCurveEditor';
+import PageAccessGate from '@/components/PageAccessGate';
 
 export default function FlexibleCdvCurvePage() {
   return (
-    <AppShell>
+    <PageAccessGate page="cdvFlexible"><AppShell>
       <CdvCurveEditor surfaceType="ASPHALT" />
-    </AppShell>
+    </AppShell></PageAccessGate>
   );
 }

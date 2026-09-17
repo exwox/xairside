@@ -29,6 +29,13 @@ const FacilityMap = nextDynamic(() => import('./FacilityMap'), {
 });
 
 export default function DashboardView() {
+  const [currentRole, setCurrentRole] = useState<string | null>(null);
+  const canEdit = currentRole !== null && currentRole !== 'VIEWER';
+  const canManage = currentRole === 'ADMIN' || currentRole === 'SUPADMIN';
+  useEffect(() => {
+    fetch('/api/auth/me', { cache: 'no-store' }).then((response) => response.json())
+      .then((data) => setCurrentRole(data.user?.role ?? null)).catch(() => {});
+  }, []);
   const [facilities, setFacilities] = useState<Facility[]>([]);
   const [damages, setDamages] = useState<Damage[]>([]);
   const [markings, setMarkings] = useState<MarkingFinding[]>([]);
@@ -394,7 +401,7 @@ export default function DashboardView() {
             drawUnit={drawUnit}
             onDrawComplete={onDrawComplete}
             onCursorMove={setCursor}
-            onContextMenuDamage={(d, pos) => setContextMenu({ damage: d, x: pos.x, y: pos.y })}
+            onContextMenuDamage={canEdit ? (d, pos) => setContextMenu({ damage: d, x: pos.x, y: pos.y }) : undefined}
             editingGeometryDamage={editingGeometryDamage}
             onSaveEditingGeometry={handleSaveEditingGeometry}
             onCancelEditingGeometry={() => setEditingGeometryDamage(null)}
@@ -405,7 +412,7 @@ export default function DashboardView() {
 
           {/* Toolbar peta */}
           <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000] flex gap-1.5 bg-white/95 backdrop-blur rounded-lg shadow-lg p-1.5">
-            <button
+            {canEdit && <button
               onClick={() => {
                 if (drawMode) { setDrawMode(false); return; }
                 const facility = (selected?.surfaceType === 'ASPHALT' || selected?.surfaceType === 'CONCRETE' ? selected : null)
@@ -422,13 +429,7 @@ export default function DashboardView() {
               title="Pilih fasilitas dan jenis kerusakan, lalu gambar sesuai satuannya."
             >
               <Pencil className="w-3.5 h-3.5" /> {drawMode ? 'Selesai / Batal Gambar' : 'Gambar Kerusakan'}
-            </button>
-            <button onClick={() => setShowDxf(true)} className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-700" title="Timpa file DXF">
-              <Upload className="w-3.5 h-3.5" /> Timpa DXF
-            </button>
-            <button onClick={openArpModal} className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-700" title="Pengaturan titik ARP">
-              <Settings className="w-3.5 h-3.5" /> ARP
-            </button>
+            </button>}
             <button onClick={() => setFitKey((k) => k + 1)} className="px-3 py-1.5 rounded-md text-xs font-semibold flex items-center gap-1.5 hover:bg-gray-100 text-gray-700" title="Fit semua fasilitas">
               <Crosshair className="w-3.5 h-3.5" /> Fit
             </button>
@@ -636,7 +637,7 @@ export default function DashboardView() {
       </div>
 
       {/* Modals */}
-      <DamageFormModal
+      {canEdit && <DamageFormModal
         open={showDamageForm || !!editingDamageModal}
         onClose={() => {
           setShowDamageForm(false);
@@ -652,10 +653,10 @@ export default function DashboardView() {
         onSaved={refresh}
         damageCatalogs={config.damageCatalogs}
         legacyDamageTypesConfig={config.damageTypesConfig}
-      />
-      <DxfUploadModal open={showDxf} onClose={() => setShowDxf(false)} arpLat={config.arpLat} arpLng={config.arpLng} layers={layers} onChanged={refresh} />
+      />}
+      {canManage && <DxfUploadModal open={showDxf} onClose={() => setShowDxf(false)} arpLat={config.arpLat} arpLng={config.arpLng} layers={layers} onChanged={refresh} />}
 
-      {showArp && (
+      {canManage && showArp && (
         <div className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-4" onClick={() => setShowArp(false)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
             <div className="px-5 py-3 border-b border-gray-100">
@@ -685,7 +686,7 @@ export default function DashboardView() {
       )}
 
       {/* Context Menu Floating Popover */}
-      {contextMenu && (
+      {canEdit && contextMenu && (
         <div
           className="fixed z-[2000] bg-slate-900 text-white rounded-xl shadow-2xl border border-slate-700 py-1.5 w-52 text-xs font-semibold overflow-hidden"
           style={{ top: contextMenu.y, left: contextMenu.x }}
@@ -728,7 +729,7 @@ export default function DashboardView() {
       )}
 
       {/* Modal Konfirmasi Hapus Kerusakan */}
-      {deletingDamage && (
+      {canEdit && deletingDamage && (
         <div className="fixed inset-0 z-[1300] bg-black/60 flex items-center justify-center p-4" onClick={() => setDeletingDamage(null)}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm p-5 space-y-4" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-3 text-red-600">
@@ -769,10 +770,10 @@ export default function DashboardView() {
         facilities={facilities}
         damageCatalogs={config.damageCatalogs}
         legacyDamageTypesConfig={config.damageTypesConfig}
-        onEditGeometry={(d) => setEditingGeometryDamage(d)}
-        onEditForm={(d) => setEditingDamageModal(d)}
-        onDelete={(d) => setDeletingDamage(d)}
-        onStatusChange={async (id, status) => {
+        onEditGeometry={canEdit ? (d) => setEditingGeometryDamage(d) : undefined}
+        onEditForm={canEdit ? (d) => setEditingDamageModal(d) : undefined}
+        onDelete={canEdit ? (d) => setDeletingDamage(d) : undefined}
+        onStatusChange={canEdit ? async (id, status) => {
           try {
             const res = await fetch(`/api/damages/${id}`, {
               method: 'PATCH',
@@ -785,7 +786,7 @@ export default function DashboardView() {
           } catch (err) {
             console.error('Gagal update status:', err);
           }
-        }}
+        } : undefined}
         onFlyTo={(lat, lng) => flyTo(lat, lng, 19)}
       />
     </div>

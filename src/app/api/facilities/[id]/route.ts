@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext, isRoleAllowed } from '@/lib/auth';
 import { planFacilityDamageResplit } from '@/lib/damage-resplit';
 import {
   findConcreteBlockForPoint,
@@ -9,8 +10,10 @@ import {
   type LatLng,
 } from '@/lib/geo';
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
     const { id } = await params;
     const facility = await prisma.facility.findUnique({
       where: { id },
@@ -21,7 +24,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    if (!facility) {
+    if (!facility || facility.airportId !== auth.activeAirportId) {
       return NextResponse.json({ error: 'Fasilitas tidak ditemukan' }, { status: 404 });
     }
     const correctionRows = await prisma.$queryRaw<{ pciCorrection: number }[]>`
@@ -81,6 +84,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
+    if (!isRoleAllowed(auth.user.role, ['SUPADMIN', 'ADMIN'])) {
+      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+    }
+
     const { id } = await params;
     const body = await req.json();
     if (body.stationIntervalM !== undefined && body.stationIntervalM !== null && body.stationIntervalM !== '') {
@@ -116,6 +126,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     });
     const result = await prisma.$transaction(async (tx) => {
       const currentFacility = await tx.facility.findUnique({ where: { id } });
+      if (!currentFacility || currentFacility.airportId !== auth.activeAirportId) {
+        throw new Error('Fasilitas tidak ditemukan atau bukan milik airport ini');
+      }
       const updated = await tx.facility.update({ where: { id }, data });
       if (body.pciCorrection !== undefined) {
         await tx.$executeRaw`UPDATE "Facility" SET "pciCorrection" = ${body.pciCorrection} WHERE "id" = ${id}`;
@@ -194,12 +207,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         || slabDirectionChanged
       );
       if (intervalChanged || sampleGridChanged || facilityGeometryChanged) {
-        const settings = await tx.appConfig.findMany({ where: { key: { in: ['arpLat', 'arpLng'] } } });
-        const configValues = Object.fromEntries(settings.map((setting) => [setting.key, setting.value]));
-        const configuredLat = Number(configValues.arpLat);
-        const configuredLng = Number(configValues.arpLng);
-        const arpLat = Number.isFinite(configuredLat) ? configuredLat : 0.9569;
-        const arpLng = Number.isFinite(configuredLng) ? configuredLng : 104.5311;
+        const arpLat = auth.activeAirport.refLat;
+        const arpLng = auth.activeAirport.refLng;
         const damages = await tx.damage.findMany({ where: { facilityId: id } });
         const plan = planFacilityDamageResplit(updated, damages, arpLat, arpLng);
 
@@ -210,7 +219,9 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
           await tx.damage.update({ where: { id: update.id }, data: update.data });
         }
         if (plan.creates.length > 0) {
-          await tx.damage.createMany({ data: plan.creates });
+          await tx.damage.createMany({
+            data: plan.creates.map((c) => ({ ...c, airportId: auth.activeAirportId })),
+          });
         }
         stationResplit = {
           updatedFindings: plan.updatedFindings,
@@ -237,9 +248,20 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
+    if (!isRoleAllowed(auth.user.role, ['SUPADMIN', 'ADMIN'])) {
+      return NextResponse.json({ error: 'Akses ditolak' }, { status: 403 });
+    }
+
     const { id } = await params;
+    const facility = await prisma.facility.findUnique({ where: { id }, select: { airportId: true } });
+    if (!facility || facility.airportId !== auth.activeAirportId) {
+      return NextResponse.json({ error: 'Fasilitas tidak ditemukan atau bukan milik airport ini' }, { status: 404 });
+    }
     await prisma.facility.delete({ where: { id } });
     return NextResponse.json({ ok: true });
   } catch (error) {

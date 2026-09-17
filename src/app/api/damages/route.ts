@@ -1,11 +1,16 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { requireAuthContext } from '@/lib/auth';
 import { validateDamageMeasurement } from '@/lib/damage-measurement';
 import { damageDefinitionForType, isDamageSeverityAllowed } from '@/lib/damage-unit-server';
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const damages = await prisma.damage.findMany({
+      where: { airportId: auth.activeAirportId },
       include: { facility: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -18,11 +23,23 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireAuthContext(req);
+    if ('response' in auth) return auth.response;
+
     const body = await req.json();
     const lat = Number(body.lat);
     const lng = Number(body.lng);
     if (!Number.isFinite(lat) || Math.abs(lat) > 90 || !Number.isFinite(lng) || Math.abs(lng) > 180) {
       return NextResponse.json({ error: 'Koordinat (lat/lng) wajib diisi' }, { status: 400 });
+    }
+    if (body.facilityId) {
+      const facility = await prisma.facility.findUnique({
+        where: { id: body.facilityId },
+        select: { airportId: true },
+      });
+      if (!facility || facility.airportId !== auth.activeAirportId) {
+        return NextResponse.json({ error: 'Fasilitas tidak ditemukan atau bukan milik airport aktif' }, { status: 400 });
+      }
     }
     const definition = await damageDefinitionForType(body.type ?? 'Lainnya', body.facilityId || null);
     if (!isDamageSeverityAllowed(definition, body.severity)) {
@@ -38,6 +55,7 @@ export async function POST(req: Request) {
     if (!measurement.ok) return NextResponse.json({ error: measurement.error }, { status: 400 });
     const damage = await prisma.damage.create({
       data: {
+        airportId: auth.activeAirportId,
         groupId: body.groupId ?? null,
         facilityId: body.facilityId || null,
         station: body.station ?? null,

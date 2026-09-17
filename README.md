@@ -16,6 +16,16 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Login dan akun
+
+Halaman login tersedia di `/login`. `SUPADMIN` dapat membuat semua role dan memilih bandara aktif. `ADMIN` mengelola akun `USER`/`VIEWER` di bandaranya melalui `/admin/users`. Perubahan role, bandara, status, atau sandi mencabut sesi akun lama.
+
+Saat menjalankan seed lokal, tetapkan `XAIRSIDE_SEED_PASSWORD` dengan sandi minimal 12 karakter. Seed tidak lagi memakai sandi bawaan:
+
+```bash
+XAIRSIDE_SEED_PASSWORD='sandi-lokal-yang-kuat' npx prisma db seed
+```
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

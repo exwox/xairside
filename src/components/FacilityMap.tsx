@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, Eye, EyeOff, Layers, MoveHorizontal } from 'lucide-react';
 import type * as LeafletNS from 'leaflet';
+import { installMapRotation, type MapRotationController } from '@/lib/leaflet-rotation';
 import type { AppConfig, DamageTypeEntry, Facility, Damage, MarkingFinding, MapLayer } from '@/types';
 import type { DxfEntity } from '@/lib/dxf';
 import { DAMAGE_STATUS_LABEL, FACILITY_TYPE_COLORS, SEVERITY_LABEL, getDamageCode } from '@/lib/constants';
@@ -97,6 +98,8 @@ interface FacilityMapProps {
 }
 
 export default function FacilityMap(props: FacilityMapProps) {
+  const viewportRef = useRef<HTMLDivElement | null>(null);
+  const rotationRef = useRef<MapRotationController | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletNS.Map | null>(null);
   const LRef = useRef<typeof LeafletNS | null>(null);
@@ -372,23 +375,9 @@ export default function FacilityMap(props: FacilityMapProps) {
       layersRef.current.draw = L.layerGroup().addTo(map);
       layersRef.current.editGeometry = L.layerGroup().addTo(map);
 
-      // Patch mouseEventToContainerPoint untuk rotasi peta presisi tanpa mengacaukan drag & crop tool
-      const origMouseEventToContainerPoint = map.mouseEventToContainerPoint.bind(map);
-      map.mouseEventToContainerPoint = function (e: MouseEvent) {
-        const pt = origMouseEventToContainerPoint(e);
-        const rot = propsRef.current.mapRotationDeg ?? 0;
-        if (!rot) return pt;
-        const container = map.getContainer();
-        const rect = container.getBoundingClientRect();
-        const cx = rect.width / 2;
-        const cy = rect.height / 2;
-        const dx = pt.x - cx;
-        const dy = pt.y - cy;
-        const rad = (-rot * Math.PI) / 180;
-        const cos = Math.cos(rad);
-        const sin = Math.sin(rad);
-        return L.point(cx + (dx * cos - dy * sin), cy + (dx * sin + dy * cos));
-      };
+      rotationRef.current = installMapRotation(
+        L, map, viewportRef.current!, propsRef.current.mapRotationDeg ?? 0,
+      );
 
       mapRef.current = map;
 
@@ -496,7 +485,7 @@ export default function FacilityMap(props: FacilityMapProps) {
             })
             .addTo(drawLayer);
         } else if (tempPoints.length === 2) {
-          const rectPreview = rectFromCorners(tempPoints[0], tempPoints[1], aLat, aLng);
+          const rectPreview = rectFromCorners(tempPoints[0], tempPoints[1], aLat, aLng, propsRef.current.mapRotationDeg ?? 0);
           st.previewShape = L.polygon(
             rectPreview.corners.map((c) => [c.lat, c.lng] as [number, number]),
             { color: '#ef4444', weight: 2, fillColor: '#ef4444', fillOpacity: 0.25, dashArray: '4 4', pane: 'drawPane' }
@@ -551,7 +540,7 @@ export default function FacilityMap(props: FacilityMapProps) {
         if (!st.points || st.points.length < 2) return;
         const drawn: DrawnRect = drawUnit === 'LENGTH'
           ? { ...lineFromPoints(st.points, aLat, aLng), geometryType: geometryTypeForDamageUnit(drawUnit) }
-          : { ...polyFromPoints(st.points, aLat, aLng), geometryType: geometryTypeForDamageUnit(drawUnit) };
+          : { ...polyFromPoints(st.points, aLat, aLng, propsRef.current.mapRotationDeg ?? 0), geometryType: geometryTypeForDamageUnit(drawUnit) };
         if (drawUnit === 'LENGTH' && drawn.lengthM < 0.05) return;
         if (drawUnit === 'PERCENT' && drawn.areaSqm < 0.01) return;
         st.completing = true;
@@ -798,6 +787,8 @@ export default function FacilityMap(props: FacilityMapProps) {
       if (m) {
         const handler = (m as unknown as Record<string, unknown>)._xairsideKeyDown as EventListener | undefined;
         if (handler) window.removeEventListener('keydown', handler);
+        rotationRef.current?.destroy();
+        rotationRef.current = null;
         m.remove();
       }
       mapRef.current = null;
@@ -805,17 +796,8 @@ export default function FacilityMap(props: FacilityMapProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Rotasi Container Peta dengan Transform CSS + Counter-Rotasi Mouse
   useEffect(() => {
-    if (containerRef.current) {
-      const rot = props.mapRotationDeg ?? 0;
-      containerRef.current.style.transform = rot ? `rotate(${rot}deg)` : 'none';
-      containerRef.current.style.transformOrigin = 'center center';
-      containerRef.current.style.transition = 'transform 0.3s ease-out';
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-      }
-    }
+    rotationRef.current?.setRotation(props.mapRotationDeg ?? 0);
   }, [props.mapRotationDeg]);
 
   // ===== Fokus peta ke ARP saat config dimuat =====
@@ -965,7 +947,7 @@ export default function FacilityMap(props: FacilityMapProps) {
           L.marker([st.rightLatLng.lat, st.rightLatLng.lng], {
             icon: L.divIcon({
               className: 'station-label-marker',
-              html: `<div style="font-size:9px;font-family:monospace;font-weight:700;color:#fef08a;background:rgba(15,23,42,0.95);padding:2px 5px;border-radius:4px;border:1px solid rgba(245,158,11,0.9);box-shadow:0 2px 6px rgba(0,0,0,0.8);text-shadow:0 1px 2px #000;white-space:nowrap;transform:translate(4px,-50%) rotate(${st.textRotationDeg}deg);transform-origin:left center">${st.stationText}</div>`,
+              html: `<div style="font-size:9px;font-family:monospace;font-weight:700;color:#fef08a;background:rgba(15,23,42,0.95);padding:2px 5px;border-radius:4px;border:1px solid rgba(245,158,11,0.9);box-shadow:0 2px 6px rgba(0,0,0,0.8);text-shadow:0 1px 2px #000;white-space:nowrap;transform:translate(4px,-50%);transform-origin:left center">${st.stationText}</div>`,
               iconSize: [0, 0],
               iconAnchor: [0, 0],
             }),
@@ -1058,8 +1040,8 @@ export default function FacilityMap(props: FacilityMapProps) {
           textCount++;
           L.marker(latlngs(ent.p.x, ent.p.y, ref), {
             icon: L.divIcon({
-              className: 'dxf-text-label',
-              html: `<span>${ent.text.replace(/</g, '&lt;')}</span>`,
+              className: 'dxf-text-marker',
+              html: `<span class="dxf-text-label" style="display:inline-block">${ent.text.replace(/</g, '&lt;')}</span>`,
             }),
             interactive: false,
             pane: 'dxfPane'
@@ -1451,8 +1433,8 @@ export default function FacilityMap(props: FacilityMapProps) {
     if (!L || !map || !group || !props.arpLat || !props.arpLng) return;
     L.marker([props.arpLat, props.arpLng], {
       icon: L.divIcon({
-        className: 'airside-label',
-        html: '<span style="color:#f472b6">✛ ARP</span>',
+        className: 'arp-label-marker',
+        html: '<span class="airside-label" style="display:inline-block"><span style="color:#f472b6">✛ ARP</span></span>',
       }),
       interactive: false,
       keyboard: false,
@@ -1701,7 +1683,9 @@ export default function FacilityMap(props: FacilityMapProps) {
 
   return (
     <div className="relative w-full h-full">
-      <div ref={containerRef} className="airside-map w-full h-full" />
+      <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full overflow-hidden">
+        <div ref={containerRef} className="airside-map w-full h-full" />
+      </div>
       {props.drawMode && (
         <div className="absolute bottom-8 left-3 z-[1050] flex flex-col items-start gap-2 max-w-[calc(100%-1.5rem)]">
           {/* Menu penggambaran presisi: ORTO F8 + jarak keyboard */}
