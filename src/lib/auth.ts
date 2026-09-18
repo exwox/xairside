@@ -99,6 +99,7 @@ export async function setSessionCookie(token: string) {
     path: '/',
     maxAge: 7 * 24 * 60 * 60,
   });
+}
 
 export async function setActiveAirportCookie(airportId: string) {
   const cookieStore = await cookies();
