@@ -92,9 +92,10 @@ export async function createSession(userId: string): Promise<string> {
 
 export async function setSessionCookie(token: string) {
   const cookieStore = await cookies();
+  const isSecure = process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL?.startsWith('https');
   cookieStore.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60,
@@ -103,9 +104,10 @@ export async function setSessionCookie(token: string) {
 
 export async function setActiveAirportCookie(airportId: string) {
   const cookieStore = await cookies();
+  const isSecure = process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL?.startsWith('https');
   cookieStore.set(ACTIVE_AIRPORT_COOKIE_NAME, airportId, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
+    secure: isSecure,
     sameSite: 'lax',
     path: '/',
     maxAge: 7 * 24 * 60 * 60,
