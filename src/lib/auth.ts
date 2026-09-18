@@ -222,6 +222,7 @@ export function isApiActionAllowed(role: UserRole, pathname: string, method: str
   if (role === 'SUPADMIN') return true;
   if (pathname === '/api/role-pages') return false;
   if (pathname.startsWith('/api/users')) return role === 'ADMIN';
+  if (pathname.startsWith('/api/backup') || pathname.startsWith('/api/restore')) return role === 'ADMIN';
   if (pathname.startsWith('/api/airports')) return role === 'ADMIN' && (method === 'GET' || method === 'HEAD');
   if (pathname === '/api/auth/select-airport') return false;
   if (pathname.startsWith('/api/auth/')) return true;
@@ -252,4 +253,10 @@ export function denyNotFound(message = 'Data tidak ditemukan'): NextResponse {
 export function checkAirportAccess(ctx: ActiveContext, targetAirportId?: string | null): boolean {
   if (ctx.user.role === 'SUPADMIN') return true;
   return ctx.user.airportId === targetAirportId;
+}
+
+export async function auth(): Promise<{ user: SessionUser } | null> {
+  const ctx = await getSessionContext();
+  if (!ctx) return null;
+  return { user: ctx.user };
 }

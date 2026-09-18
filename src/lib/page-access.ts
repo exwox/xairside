@@ -72,6 +72,7 @@ export function pageKeyForPath(pathname: string): PageKey | null {
 /** Page setting that further restricts API calls. Existing role checks still apply. */
 export function pageForApiRequest(pathname: string, method: string): PageKey | null {
   if (pathname.startsWith('/api/users')) return 'users';
+  if (pathname.startsWith('/api/backup') || pathname.startsWith('/api/restore')) return 'admin';
   if (pathname.startsWith('/api/inspections') || pathname === '/api/inspection-items') return 'inspections';
   if (pathname.startsWith('/api/damages') || pathname === '/api/upload') return method === 'GET' ? null : 'damages';
   if (pathname.startsWith('/api/markings')) return method === 'GET' ? null : 'markings';

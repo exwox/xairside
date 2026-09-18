@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -27,6 +27,7 @@ model Airport {
   pciSurveys  PciSurvey[]
   inspections Inspection[]
   configs     AirportConfig[]
+  backupLogs  BackupLog[]
 }
 
 model User {
@@ -41,6 +42,7 @@ model User {
   inspections  Inspection[] @relation("InspectorRelation")
   approvals    Inspection[] @relation("SupervisorRelation")
   sessions     Session[]
+  backupLogs   BackupLog[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
@@ -275,4 +277,24 @@ model PciSurvey {
   createdAt     DateTime   @default(now())
 
   @@index([airportId])
+}
+
+model BackupLog {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  backupType   String   // "AIRPORT" or "FULL_SYSTEM"
+  airportId    String?
+  airport      Airport? @relation(fields: [airportId], references: [id], onDelete: SetNull)
+  fileName     String
+  fileSize     Int      // in bytes
+  format       String   // "JSON" or "SQL"
+  includePhotos Boolean  @default(false)
+  dataCount    String   // JSON string with count info
+  status       String   @default("COMPLETED") // "COMPLETED", "RESTORED", "FAILED"
+  createdAt    DateTime @default(now())
+
+  @@index([userId])
+  @@index([airportId])
+  @@index([backupType])
 }

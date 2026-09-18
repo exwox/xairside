@@ -1,13 +1,79 @@
+version: '3.8'
+
 services:
-  web:
-    build: .
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./prisma:/app/prisma
-      # Foto kerusakan di-upload runtime ke public/uploads — di-mount agar
-      # tidak hilang saat container di-recreate/rebuild.
-      - ./public/uploads:/app/public/uploads
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: xairside-db
     environment:
-      - DATABASE_URL=file:./dev.db
-    restart: always
+      POSTGRES_DB: xairside
+      POSTGRES_USER: xairside
+      POSTGRES_PASSWORD: xairside123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U xairside"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - xairside-network
+
+  # X-AIRSIDE Application
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: xairside-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "2026:2026"
+    environment:
+      # Database
+      DATABASE_URL: postgresql://xairside:xairside123@postgres:5432/xairside
+      
+      # Server
+      PORT: 2026
+      NODE_ENV: production
+      
+      # Next.js
+      NEXT_PUBLIC_API_URL: http://localhost:2026
+      
+      # Authentication
+      NEXTAUTH_SECRET: your-production-secret-key-change-this
+      
+      # Application
+      XAIRSIDE_SEED_PASSWORD: XairsideAdmin123!
+    
+    volumes:
+      # Preserve database migrations
+      - ./prisma:/app/prisma
+      # Preserve uploaded damage photos
+      - ./public/uploads:/app/public/uploads
+      # Preserve logs
+      - ./logs:/app/logs
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:2026"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    
+    restart: unless-stopped
+    networks:
+      - xairside-network
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  xairside-network:
+    driver: bridge
+

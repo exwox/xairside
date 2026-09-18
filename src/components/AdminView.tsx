@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import nextDynamic from 'next/dynamic';
 import Link from 'next/link';
-import { Save, Plus, Trash2, RotateCcw, RotateCw, MapPin, Edit3, ChevronDown, ChevronUp, AlertTriangle, Compass, LineChart, Users } from 'lucide-react';
+import { Save, Plus, Trash2, RotateCcw, RotateCw, MapPin, Edit3, ChevronDown, ChevronUp, AlertTriangle, Compass, LineChart, Users, Database } from 'lucide-react';
 import type { PageKey } from '@/lib/page-access';
 import type { Facility } from '@/types';
 import { FACILITY_TYPE_LABEL, FACILITY_TYPE_COLORS } from '@/lib/constants';
@@ -421,8 +421,7 @@ export default function AdminView() {
           </span>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {currentRole && (pageAccess.includes('users') || pageAccess.includes('airports')
-            || ['dvFlexible', 'dvRigid', 'cdvFlexible', 'cdvRigid'].some((page) => pageAccess.includes(page as PageKey))) && <div className="border-b border-slate-200 bg-slate-50 p-2.5">
+          {currentRole && pageAccess.includes('admin') && <div className="border-b border-slate-200 bg-slate-50 p-2.5">
             <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-slate-500">
               <Users className="h-3.5 w-3.5" /> {currentRole === 'SUPADMIN' ? 'Menu Superadmin' : 'Menu Admin'}
             </p>
@@ -451,6 +450,10 @@ export default function AdminView() {
                   {pageAccess.includes('cdvRigid') && <Link href="/admin/kurva-cdv-rigit" className="block rounded-md px-2 py-1.5 text-xs text-slate-700 hover:bg-sky-100">Kurva CDV Rigit</Link>}
                 </div>
               </>}
+              {/* Link Backup & Recovery harus di luar blok PCI: dulu tersembunyi bagi ADMIN tanpa akses kurva PCI. */}
+              <Link href="/admin/backup-recovery" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:border-sky-300 hover:bg-sky-50">
+                <Database className="h-4 w-4 text-sky-700" /> Backup & Recovery
+              </Link>
             </nav>
           </div>}
           {facilities.length === 0 && <p className="p-3 text-xs text-gray-400">Belum ada fasilitas. Klik + untuk menambah.</p>}

@@ -1,24 +1,23 @@
-FROM node:24-alpine
+FROM node:24-slim
 
 WORKDIR /app
 
-# Install dependencies first (leverages caching)
-COPY package*.json ./
-RUN npm install
+# Install system dependencies required by Prisma
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ openssl && rm -rf /var/lib/apt/lists/*
 
-# Copy application files
+# Copy all files first (including prisma schema)
 COPY . .
 
-# Generate Prisma Client
-RUN npx prisma generate
+# Install dependencies with postinstall script
+RUN npm install --legacy-peer-deps 2>&1 || npm install --legacy-peer-deps --force
 
 # Build application
 RUN npm run build
 
-EXPOSE 3000
+EXPOSE 2026
 
-ENV PORT=3000
+ENV PORT=2026
 ENV NODE_ENV=production
 
-# Start Next.js
-CMD ["sh", "-c", "npx prisma migrate deploy && npm start"]
+# Start Next.js with db push instead of migrate deploy for fresh setups
+CMD ["sh", "-c", "npx prisma db push --skip-generate && npx prisma db seed && npm start"]
