@@ -111,8 +111,6 @@ export async function setActiveAirportCookie(airportId: string) {
   });
 }
 
-}
-
 export async function destroySession(token?: string) {
   const cookieStore = await cookies();
   const sessionToken = token || cookieStore.get(SESSION_COOKIE_NAME)?.value;
