@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { createSession, setSessionCookie, verifyPassword } from '@/lib/auth';
+import { createSession, setSessionCookie, setActiveAirportCookie, verifyPassword } from '@/lib/auth';
 
 export async function POST(req: Request) {
   try {
@@ -29,6 +29,19 @@ export async function POST(req: Request) {
 
     // Create session & set cookie
     const token = await createSession(user.id);
+
+     // Set active airport for non-SUPADMIN users
+     if (user.role !== 'SUPADMIN' && user.airportId) {
+       await setActiveAirportCookie(user.airportId);
+     } else if (user.role === 'SUPADMIN') {
+       // For SUPADMIN, set first active airport
+       const firstAirport = await prisma.airport.findFirst({
+         where: { isActive: true },
+         orderBy: { code: 'asc' },
+       });
+       if (firstAirport) await setActiveAirportCookie(firstAirport.id);
+     }
+
     await setSessionCookie(token);
 
     return NextResponse.json({

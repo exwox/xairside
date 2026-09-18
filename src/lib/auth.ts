@@ -99,6 +99,18 @@ export async function setSessionCookie(token: string) {
     path: '/',
     maxAge: 7 * 24 * 60 * 60,
   });
+
+export async function setActiveAirportCookie(airportId: string) {
+  const cookieStore = await cookies();
+  cookieStore.set(ACTIVE_AIRPORT_COOKIE_NAME, airportId, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 7 * 24 * 60 * 60,
+  });
+}
+
 }
 
 export async function destroySession(token?: string) {
