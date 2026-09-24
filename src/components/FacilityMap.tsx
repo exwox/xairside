@@ -813,9 +813,11 @@ export default function FacilityMap(props: FacilityMapProps) {
     const observer = new ResizeObserver(refreshSize);
     observer.observe(container);
     window.addEventListener('orientationchange', refreshSize);
+    const t = setTimeout(refreshSize, 100);
     refreshSize();
 
     return () => {
+      clearTimeout(t);
       observer.disconnect();
       window.removeEventListener('orientationchange', refreshSize);
       if (frameId !== null) window.cancelAnimationFrame(frameId);
@@ -1704,9 +1706,9 @@ export default function FacilityMap(props: FacilityMapProps) {
   const parsedDimension = parseRectangleDimensions(dimensionInput);
 
   return (
-    <div className="relative w-full h-full">
-      <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full overflow-hidden">
-        <div ref={containerRef} className="airside-map w-full h-full" />
+    <div className="relative w-full h-full min-h-[350px]">
+      <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full min-h-[350px] overflow-hidden">
+        <div ref={containerRef} className="airside-map w-full h-full min-h-[350px]" />
       </div>
       {props.drawMode && (
         <div className="absolute bottom-8 left-3 z-[1050] flex flex-col items-start gap-2 max-w-[calc(100%-1.5rem)]">

@@ -14,7 +14,7 @@ import { rotateFacilityPolygonClockwise, closestEquivalentBearing, computePolygo
 
 const AdminMap = nextDynamic(() => import('./AdminMap'), {
   ssr: false,
-  loading: () => <div className="w-full h-full bg-slate-800 animate-pulse" />,
+  loading: () => <div className="w-full h-full min-h-[350px] bg-slate-800 animate-pulse" />,
 });
 
 export default function AdminView() {

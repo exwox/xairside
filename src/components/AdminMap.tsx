@@ -117,9 +117,11 @@ export default function AdminMap({
     const observer = new ResizeObserver(refreshSize);
     observer.observe(container);
     window.addEventListener('orientationchange', refreshSize);
+    const t = setTimeout(refreshSize, 100);
     refreshSize();
 
     return () => {
+      clearTimeout(t);
       observer.disconnect();
       window.removeEventListener('orientationchange', refreshSize);
       if (frameId !== null) window.cancelAnimationFrame(frameId);
@@ -708,8 +710,8 @@ export default function AdminMap({
   }, [facilities, selectedId, vertices, stationIntervalM, locationMode, sampleLengthM, sampleWidthM, surfaceType, blockLengthM, blockWidthM, slabDirection, lengthM, widthM, bearingDeg, mapReady]);
 
   return (
-    <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full overflow-hidden">
-      <div ref={containerRef} className="airside-map w-full h-full" />
+    <div ref={viewportRef} className="leaflet-container relative isolate w-full h-full min-h-[350px] overflow-hidden">
+      <div ref={containerRef} className="airside-map w-full h-full min-h-[350px]" />
     </div>
   );
 }
