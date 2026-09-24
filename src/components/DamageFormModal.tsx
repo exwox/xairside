@@ -619,7 +619,7 @@ export default function DamageFormModal({ open, onClose, arpLat, arpLng, facilit
   const parsed = parseLatLngInput(googleInput);
 
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100 sticky top-0 bg-white rounded-t-xl z-10">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
@@ -648,7 +648,7 @@ export default function DamageFormModal({ open, onClose, arpLat, arpLng, facilit
             </div>
           )}
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-xs text-gray-500">Fasilitas</span>
               <select
@@ -844,7 +844,7 @@ export default function DamageFormModal({ open, onClose, arpLat, arpLng, facilit
               <input value={lengthM} onChange={(e) => setLengthM(e.target.value)} readOnly={Boolean(rect || editingDamage)} type="number" step="0.01" className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5 font-semibold read-only:bg-gray-100" />
               <span className="mt-1 block text-[11px] text-gray-500">Dihitung otomatis dari setiap ruas garis yang digambar, bukan luas atau panjang kotak.</span>
             </label>
-          ) : <div className="grid grid-cols-3 gap-3">
+          ) : <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <label className="block">
               <span className="text-xs text-gray-500">Panjang (m)</span>
               <input value={lengthM} onChange={(e) => setLengthM(e.target.value)} readOnly={Boolean(editingDamage)} type="number" step="0.1" className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5 read-only:bg-gray-100" />

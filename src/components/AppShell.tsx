@@ -57,14 +57,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-sans">
       <header className="bg-slate-900 text-white shadow-lg sticky top-0 z-[1000]">
-        <div className="max-w-[1800px] mx-auto px-4 h-14 flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2 font-bold tracking-tight">
+        <div className="mx-auto flex min-h-14 max-w-[1800px] flex-wrap items-center gap-2 px-3 py-2 sm:flex-nowrap sm:gap-4 sm:px-4">
+          <Link href="/" className="flex shrink-0 items-center gap-2 font-bold tracking-tight">
             <Plane className="w-5 h-5 text-sky-400" />
-            <span>
+            <span className="hidden sm:inline">
               X-Airside <span className="text-sky-400 font-normal">Monitoring</span>
             </span>
           </Link>
-          <nav className="flex items-center gap-1 overflow-x-auto">
+          <nav className="order-3 -mx-3 flex w-[calc(100%+1.5rem)] gap-1 overflow-x-auto px-3 pb-0.5 sm:order-none sm:mx-0 sm:w-auto sm:flex-1 sm:px-0 sm:pb-0">
             {MENUS.filter((m) => auth.pageAccess.includes(m.page as PageKey)).map((m) => {
               const Icon = m.icon;
               const active = pathname === m.href || (m.href !== '/' && pathname.startsWith(`${m.href}/`));
@@ -82,9 +82,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
               );
             })}
           </nav>
-          <div className="ml-auto flex items-center gap-2 text-xs text-slate-300">
-            <span>{auth.user.name} · {auth.user.role}</span>
-            {auth.user.role === 'SUPADMIN' ? <select aria-label="Bandara aktif" value={auth.activeAirport.id} onChange={(e) => changeAirport(e.target.value)} className="rounded bg-slate-700 px-2 py-1 text-white">{auth.availableAirports.map((airport) => <option key={airport.id} value={airport.id}>{airport.code}</option>)}</select> : <span>{auth.activeAirport.name}</span>}
+          <div className="ml-auto flex shrink-0 items-center gap-2 text-xs text-slate-300">
+            <span className="hidden lg:inline">{auth.user.name} · {auth.user.role}</span>
+            {auth.user.role === 'SUPADMIN' ? <select aria-label="Bandara aktif" value={auth.activeAirport.id} onChange={(e) => changeAirport(e.target.value)} className="max-w-24 rounded bg-slate-700 px-2 py-1 text-white sm:max-w-36">{auth.availableAirports.map((airport) => <option key={airport.id} value={airport.id}>{airport.code}</option>)}</select> : <span className="max-w-24 truncate sm:max-w-36">{auth.activeAirport.name}</span>}
             <button onClick={logout} className="rounded border border-slate-500 px-2 py-1 hover:bg-slate-700">Keluar</button>
           </div>
         </div>

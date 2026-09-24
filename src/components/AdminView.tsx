@@ -392,9 +392,9 @@ export default function AdminView() {
   if (loading) return <div className="flex items-center justify-center h-full text-gray-500">Memuat data fasilitas...</div>;
 
   return (
-    <div className="flex h-full">
+    <div className="flex min-h-[calc(100svh-3.5rem)] flex-col lg:h-full lg:min-h-0 lg:flex-row">
       {/* Panel kiri — daftar fasilitas */}
-      <aside className="w-80 border-r border-gray-200 bg-white flex flex-col overflow-hidden">
+      <aside className="flex max-h-72 w-full flex-col overflow-hidden border-b border-gray-200 bg-white lg:max-h-none lg:w-80 lg:border-r lg:border-b-0">
         <div className="p-3 border-b border-gray-100 flex items-center justify-between">
           <h2 className="font-bold text-gray-800 flex items-center gap-2">
             <Edit3 className="w-4 h-4 text-sky-600" /> Kelola Fasilitas
@@ -475,7 +475,7 @@ export default function AdminView() {
       </aside>
 
       {/* Panel tengah — peta edit polygon */}
-      <div className="flex-1 relative">
+      <div className="relative min-h-[55svh] flex-1 lg:min-h-0">
         {configReady ? <AdminMap
           arpLat={config.arpLat}
           arpLng={config.arpLng}
@@ -511,7 +511,7 @@ export default function AdminView() {
       </div>
 
       {/* Panel kanan — metadata */}
-      <aside className="w-80 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
+      <aside className="flex max-h-[70svh] w-full flex-col overflow-hidden border-t border-gray-200 bg-white lg:max-h-none lg:w-80 lg:border-t-0 lg:border-l">
         <div className="p-3 border-b border-gray-100">
           <button onClick={() => setShowMeta(!showMeta)} className="flex items-center justify-between w-full font-bold text-gray-800">
             <span className="flex items-center gap-2"><MapPin className="w-4 h-4 text-sky-600" /> Metadata & Polygon</span>

@@ -20,7 +20,7 @@ export default function InspeksiPage() {
   return (
     <AppShell>
       <div className="bg-gray-50">
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+        <header className="flex flex-col gap-3 border-b border-gray-200 bg-white px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Inspeksi Airside</h1>
             <p className="text-sm text-gray-500">Checklist digital Runway / Taxiway / Apron</p>
@@ -30,7 +30,7 @@ export default function InspeksiPage() {
             <button type="button" onClick={() => setRole('supervisor')} className={`rounded px-3 py-2 text-sm ${role === 'supervisor' ? 'bg-sky-700 text-white' : 'bg-gray-100'}`}>Persetujuan</button>
           </div>}
         </header>
-        <main className="max-w-7xl mx-auto px-6 py-6">
+        <main className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-6">
           {viewingId ? (
             <InspectionDetailView
               inspectionId={viewingId}

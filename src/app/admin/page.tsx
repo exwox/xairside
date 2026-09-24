@@ -11,7 +11,7 @@ const AdminView = dynamic(() => import('@/components/AdminView'), {
 export default function AdminPage() {
   return (
     <AppShell>
-      <div className="h-[calc(100vh-3.5rem)]">
+      <div className="min-h-[calc(100svh-3.5rem)] lg:h-[calc(100vh-3.5rem)]">
         <AdminView />
       </div>
     </AppShell>

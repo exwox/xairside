@@ -48,10 +48,10 @@ export default function DamageDetailModal({ open, onClose, damage, allDamages, f
   const damageName = entry?.name ?? damage.type;
 
   return (
-    <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto">
+    <div className="fixed inset-0 z-[1000] bg-black/60 backdrop-blur-xs flex items-center justify-center overflow-y-auto p-2 sm:p-4">
       <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+        <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl font-mono text-sm font-black text-white min-w-[42px] text-center" style={{ background: SEVERITY_COLORS[damage.severity] }}>{code}</div>
             <div>
@@ -65,7 +65,7 @@ export default function DamageDetailModal({ open, onClose, damage, allDamages, f
           <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-200/50 rounded-xl"><X className="w-5 h-5" /></button>
         </div>
         {/* Body */}
-        <div className="p-6 space-y-5 max-h-[75vh] overflow-y-auto">
+        <div className="max-h-[75vh] space-y-5 overflow-y-auto p-4 sm:p-6">
           {/* Overview Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-sky-50/80 border border-sky-100 rounded-xl p-3.5">
@@ -178,7 +178,7 @@ export default function DamageDetailModal({ open, onClose, damage, allDamages, f
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/80 px-4 py-3 sm:px-6 sm:py-4">
           <div className="flex gap-2">
             {onFlyTo && (
               <button type="button" onClick={() => { onFlyTo(damage.lat, damage.lng); onClose(); }} className="px-3 py-1.5 text-xs font-semibold text-sky-700 bg-sky-50 border border-sky-200 hover:bg-sky-100 rounded-lg flex items-center gap-1.5">

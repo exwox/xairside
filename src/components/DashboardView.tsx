@@ -384,8 +384,8 @@ export default function DashboardView() {
       </div>
 
       {/* Peta + Panel */}
-      <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-330px)] min-h-[520px]">
-        <div className="relative flex-1 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-slate-800">
+      <div className="flex flex-col gap-4 lg:h-[calc(100vh-330px)] lg:min-h-[520px] lg:flex-row">
+        <div className="relative min-h-[55svh] flex-1 overflow-hidden rounded-xl border border-gray-200 bg-slate-800 shadow-sm lg:min-h-0">
           <FacilityMap
             facilities={facilities}
             damages={damages}

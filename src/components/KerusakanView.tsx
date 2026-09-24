@@ -296,12 +296,12 @@ export default function KerusakanView() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
           <button
             onClick={addVisualDamageFromGps}
             disabled={gpsState === 'locating'}
             title='Tentukan titik lokasi kerusakan otomatis dari GPS HP. Presisi mengikuti sinyal GPS (umumnya ±3-15 m). Area default 2×2 m bisa disesuaikan.'
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60 disabled:cursor-wait rounded-lg shadow-sm transition-colors"
+            className="flex flex-1 items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-sky-600 hover:bg-sky-700 disabled:opacity-60 disabled:cursor-wait rounded-lg shadow-sm transition-colors sm:flex-none"
           >
             <Crosshair className={`w-3.5 h-3.5 ${gpsState === 'locating' ? 'animate-pulse' : ''}`} />
             {gpsState === 'locating' ? 'Mencari GPS HP...' : 'Tambah Kerusakan Visual'}
@@ -309,7 +309,7 @@ export default function KerusakanView() {
           <button
             onClick={fetchData}
             disabled={loading}
-            className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors border border-slate-300"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             Refresh
@@ -317,7 +317,7 @@ export default function KerusakanView() {
           <button
             onClick={exportCsv}
             disabled={filteredDamages.length === 0}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors"
+            className="flex flex-1 items-center justify-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 rounded-lg shadow-sm transition-colors sm:flex-none"
           >
             <Download className="w-3.5 h-3.5" />
             Ekspor Excel/CSV
@@ -492,8 +492,8 @@ export default function KerusakanView() {
           />
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <div className="flex items-center justify-between gap-1.5 sm:justify-start">
             <Filter className="w-3.5 h-3.5 text-slate-500" />
             <span className="text-xs font-semibold text-slate-600">Severity:</span>
             <select
@@ -508,7 +508,7 @@ export default function KerusakanView() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between gap-1.5 sm:justify-start">
             <span className="text-xs font-semibold text-slate-600">Status:</span>
             <select
               value={selectedStatus}
@@ -522,7 +522,7 @@ export default function KerusakanView() {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center justify-between gap-1.5 sm:justify-start">
             <span className="text-xs font-semibold text-slate-600">Urutan:</span>
             <select
               value={sortBy}

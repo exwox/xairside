@@ -46,7 +46,7 @@ export default function ConfigModal({ open, onClose, arpLat, arpLng, airportName
   };
 
   return (
-    <div className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-[1200] bg-black/50 flex items-center justify-center p-2 sm:p-4" onClick={onClose}>
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between px-5 py-3 border-b border-gray-100">
           <h3 className="font-bold text-gray-800">⚙ Pengaturan Koordinat</h3>
@@ -62,7 +62,7 @@ export default function ConfigModal({ open, onClose, arpLat, arpLng, airportName
             <span className="text-xs text-gray-500">Nama Bandara</span>
             <input value={name} onChange={(e) => setName(e.target.value)} className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5" />
           </label>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <label className="block">
               <span className="text-xs text-gray-500">ARP Latitude</span>
               <input value={lat} onChange={(e) => setLat(e.target.value)} type="number" step="0.000001" className="mt-1 w-full border border-gray-300 rounded-md px-2 py-1.5 font-mono text-xs" />
