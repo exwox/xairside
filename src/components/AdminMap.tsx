@@ -104,6 +104,28 @@ export default function AdminMap({
     }
   }, [selectedId]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!mapReady || !map || !container) return;
+
+    let frameId: number | null = null;
+    const refreshSize = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    };
+    const observer = new ResizeObserver(refreshSize);
+    observer.observe(container);
+    window.addEventListener('orientationchange', refreshSize);
+    refreshSize();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', refreshSize);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [mapReady]);
+
   // Init map
   useEffect(() => {
     let cancelled = false;

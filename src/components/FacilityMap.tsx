@@ -800,6 +800,28 @@ export default function FacilityMap(props: FacilityMapProps) {
     rotationRef.current?.setRotation(props.mapRotationDeg ?? 0);
   }, [props.mapRotationDeg]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    const container = containerRef.current;
+    if (!mapReady || !map || !container) return;
+
+    let frameId: number | null = null;
+    const refreshSize = () => {
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+      frameId = window.requestAnimationFrame(() => map.invalidateSize({ pan: false }));
+    };
+    const observer = new ResizeObserver(refreshSize);
+    observer.observe(container);
+    window.addEventListener('orientationchange', refreshSize);
+    refreshSize();
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('orientationchange', refreshSize);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
+    };
+  }, [mapReady]);
+
   // ===== Fokus peta ke ARP saat config dimuat =====
   // Guard berbasis nilai ARP terakhir yang dipakai memusatkan peta, bukan boolean
   // sekali-jalan: saat kembali ke dashboard, peta bisa siap lebih dulu (chunk
