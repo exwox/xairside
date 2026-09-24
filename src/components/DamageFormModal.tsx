@@ -11,6 +11,7 @@ import { damageDrawingModeLabel, damageUnitForGeometryType, isDamageUnitCompatib
 import { SEVERITIES, SEVERITY_LABEL, SEVERITY_COLORS, DAMAGE_STATUS_LABEL } from '@/lib/constants';
 import { resolveDamageCatalogEntry } from '@/lib/damage-catalog';
 import { distressCatalog } from '@/lib/pci-data';
+import { createClientUuid } from '@/lib/client-uuid';
 import {
   formatDms,
   parseLatLngInput,
@@ -538,7 +539,7 @@ export default function DamageFormModal({ open, onClose, arpLat, arpLng, facilit
         }
       } else if (splitItems.length > 1 && rect) {
         // Jika kerusakan melintasi 2 (atau lebih) STA atau Sampel PCI, buat groupId dan simpan masing-masing potongan record
-        const groupId = crypto.randomUUID();
+        const groupId = createClientUuid();
         for (const item of splitItems) {
           const itemStation = isSamMode ? (item.sampleCode || item.stationText) : item.subSegmentCode;
           const itemSampleCode = isSamMode ? (item.sampleCode || item.stationText) : null;

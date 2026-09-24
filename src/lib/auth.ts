@@ -106,7 +106,7 @@ export async function setActiveAirportCookie(airportId: string) {
   const cookieStore = await cookies();
   const isSecure = process.env.NODE_ENV === 'production' && process.env.NEXTAUTH_URL?.startsWith('https');
   cookieStore.set(ACTIVE_AIRPORT_COOKIE_NAME, airportId, {
-    httpOnly: false,
+    httpOnly: true,
     secure: isSecure,
     sameSite: 'lax',
     path: '/',

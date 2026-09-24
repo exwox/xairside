@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, Download, LineChart, Loader2, Plus, RotateCcw, Save, Trash2, Upload } from 'lucide-react';
 import { distressCatalog, type SurfaceType } from '@/lib/pci-data';
+import { createClientUuid } from '@/lib/client-uuid';
 import {
   defaultSurfaceDamageCatalog,
   validateSurfaceDamageCatalog,
@@ -177,7 +178,7 @@ export default function DvCurveEditor({ surfaceType }: { surfaceType: SurfaceTyp
 
   const addMetadata = () => {
     setCatalogEntries((current) => [...current, {
-      id: `${surfaceType}-custom-${crypto.randomUUID()}`,
+      id: `${surfaceType}-custom-${createClientUuid()}`,
       code: '', name: '', pciCode: null, aliases: [],
     }]);
     setDirty(true);
